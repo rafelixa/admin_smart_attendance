@@ -2,10 +2,19 @@
   "version": 2,
   "builds": [
     { "src": "backend/server.js", "use": "@vercel/node" },
-    { "src": "frontend/**", "use": "@vercel/static" }
+    { "src": "frontend/package.json", "use": "@vercel/static-build" }
   ],
   "routes": [
-    { "src": "/api/(.*)", "dest": "backend/server.js" },
-    { "src": "/(.*)", "dest": "/frontend/$1" }
+    { "src": "/api/(.*)", "dest": "/backend/server.js" },
+    { "src": "^/login$", "dest": "/frontend/src/pages/login/index.html" },
+    { "src": "^/dashboard$", "dest": "/frontend/src/pages/dashboard/index.html" },
+    { "src": "^/camera$", "dest": "/frontend/src/pages/camera/index.html" },
+    { "src": "^/request-list$", "dest": "/frontend/src/pages/request_list/index.html" },
+    { "src": "^/request-list/(.*)", "dest": "/frontend/src/pages/request_list/$1" },
+    { "src": "^/request-list-manage/(.*)", "dest": "/frontend/src/pages/request_list_manage/$1" },
+    { "src": "^/userlist$", "dest": "/frontend/src/pages/userlist/index.html" },
+    { "src": "^/userlist-manage$", "dest": "/frontend/src/pages/userlist_manage/index.html" },
+    { "src": "^/userlist-manage/(.*)", "dest": "/frontend/src/pages/userlist_manage/$1" },
+    { "src": "^/(.*)$", "dest": "/frontend/$1" }
   ]
 }
