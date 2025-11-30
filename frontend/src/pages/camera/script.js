@@ -14,13 +14,13 @@ function checkAuth() {
   const user = JSON.parse(localStorage.getItem('user'));
   
   if (!user) {
-    window.location.href = '../login/index.html';
+    window.location.href = '/login';
     return false;
   }
   
   if (user.role !== 'admin') {
     alert('Access denied. Admin only.');
-    window.location.href = '../login/index.html';
+    window.location.href = '/login';
     return false;
   }
   

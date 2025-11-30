@@ -10,14 +10,14 @@ const API_URL = (typeof window !== 'undefined' && (window.location.hostname === 
 function checkAuth() {
   const userStr = localStorage.getItem('user');
   if (!userStr) {
-    window.location.href = '../login/index.html';
+    window.location.href = '/login';
     return null;
   }
   
   const user = JSON.parse(userStr);
   if (user.role !== 'admin') {
     alert('Access denied. Admin only.');
-    window.location.href = '../login/index.html';
+    window.location.href = '/login';
     return null;
   }
   
@@ -151,7 +151,7 @@ function displayPermissions(permissions) {
     // Click to view detail
     row.addEventListener('click', () => {
       const statusFolder = permission.status; // pending, approved, rejected
-      window.location.href = `../request_list_manage/${statusFolder}/index.html?id=${permission.id}`;
+      window.location.href = `/request-list-manage/${statusFolder}?id=${permission.id}`;
     });
 
     // Hover effects
@@ -334,30 +334,30 @@ document.querySelector('.filter-option[data-filter="all"]').classList.add('activ
 const pendingRows = document.querySelectorAll('.frame-4, .frame-6');
 pendingRows.forEach((row, index) => {
   row.style.cursor = 'pointer';
-  row.addEventListener('click', function() {
+    row.addEventListener('click', function() {
     // index 0 = request ID 1, index 1 = request ID 2
     const requestId = index + 1;
-    window.location.href = `../request_list_manage/pending/index.html?id=${requestId}`;
+    window.location.href = `/request-list-manage/pending?id=${requestId}`;
   });
 });
 
 // Add click handler for approved rows to navigate to approved detail page
 const approvedRows = document.querySelectorAll('.frame-7, .frame-8, .frame-9, .frame-10');
-approvedRows.forEach((row, index) => {
+  approvedRows.forEach((row, index) => {
   row.style.cursor = 'pointer';
   row.addEventListener('click', function() {
     // index 0 = approved ID 1, index 1 = approved ID 2, etc.
     const requestId = index + 1;
-    window.location.href = `../request_list_manage/approved/index.html?id=${requestId}`;
+    window.location.href = `/request-list-manage/approved?id=${requestId}`;
   });
 });
 
 // Add click handler for rejected row to navigate to rejected detail page
 const rejectedRow = document.querySelector('.frame-11');
-if (rejectedRow) {
+  if (rejectedRow) {
   rejectedRow.style.cursor = 'pointer';
   rejectedRow.addEventListener('click', function() {
-    window.location.href = '../request_list_manage/rejected/index.html?id=1';
+    window.location.href = '/request-list-manage/rejected?id=1';
   });
 }
 

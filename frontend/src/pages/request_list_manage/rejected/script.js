@@ -8,14 +8,14 @@ const API_URL = (typeof window !== 'undefined' && (window.location.hostname === 
 function checkAuth() {
   const userStr = localStorage.getItem('user');
   if (!userStr) {
-    window.location.href = '../../../login/index.html';
+    window.location.href = '/login';
     return null;
   }
   
   const user = JSON.parse(userStr);
   if (user.role !== 'admin') {
     alert('Access denied. Admin only.');
-    window.location.href = '../../../login/index.html';
+    window.location.href = '/login';
     return null;
   }
   
@@ -284,10 +284,7 @@ function showError(message) {
     <div style="text-align: center; padding: 100px 40px; color: #dc3545;">
       <i class="fas fa-exclamation-circle" style="font-size: 48px; margin-bottom: 20px;"></i>
       <p style="font-size: 18px;">${message}</p>
-      <button onclick="window.location.href='../../request_list/index.html'" 
-              style="margin-top: 20px; padding: 10px 30px; background: #e0697e; color: white; border: none; border-radius: 8px; cursor: pointer; font-size: 16px;">
-        Back to Request List
-      </button>
+      <button onclick="window.location.href='/request-list'" style="margin-top: 20px; padding: 10px 30px; background: #e0697e; color: white; border: none; border-radius: 8px; cursor: pointer; font-size: 16px;">Back to Request List</button>
     </div>
   `;
 }

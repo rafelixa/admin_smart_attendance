@@ -66,7 +66,7 @@ document.addEventListener('DOMContentLoaded', function () {
                     
                     // Redirect to dashboard
                     setTimeout(() => {
-                        window.location.href = '../dashboard/index.html';
+                        window.location.href = '/dashboard';
                     }, 500);
                 } else {
                     // Login failed - show specific error message

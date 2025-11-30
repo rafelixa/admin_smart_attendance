@@ -50,14 +50,14 @@ const API_URL = (typeof window !== 'undefined' && (window.location.hostname === 
 function checkAuth() {
   const userStr = localStorage.getItem('user');
   if (!userStr) {
-    window.location.href = '../login/index.html';
+    window.location.href = '/login';
     return null;
   }
   
   const user = JSON.parse(userStr);
   if (user.role !== 'admin') {
     alert('Access denied. Admin only.');
-    window.location.href = '../login/index.html';
+    window.location.href = '/login';
     return null;
   }
   
@@ -189,7 +189,7 @@ function displayStudents(students) {
 
     // Click to view detail
     row.addEventListener('click', () => {
-      window.location.href = `../userlist_manage/index.html?id=${student.user_id}`;
+      window.location.href = `/userlist-manage?id=${student.user_id}`;
     });
 
     // Hover effects

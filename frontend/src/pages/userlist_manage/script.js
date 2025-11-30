@@ -12,14 +12,14 @@ const API_URL = (typeof window !== 'undefined' && (window.location.hostname === 
 function checkAuth() {
   const userStr = localStorage.getItem('user');
   if (!userStr) {
-    window.location.href = '../login/index.html';
+    window.location.href = '/login';
     return null;
   }
   
   const user = JSON.parse(userStr);
   if (user.role !== 'admin') {
     alert('Access denied. Admin only.');
-    window.location.href = '../login/index.html';
+    window.location.href = '/login';
     return null;
   }
   
@@ -53,7 +53,7 @@ async function fetchStudentDetail(userId) {
     } else {
       console.error('Failed to fetch student detail:', data.message);
       alert('Student not found');
-      window.location.href = '../userlist/index.html';
+      window.location.href = '/userlist';
     }
   } catch (error) {
     console.error('Error fetching student detail:', error);
@@ -215,7 +215,7 @@ document.addEventListener('DOMContentLoaded', function() {
   const userId = getUserIdFromURL();
   if (!userId) {
     alert('No user ID specified');
-    window.location.href = '../userlist/index.html';
+    window.location.href = '/userlist';
     return;
   }
 

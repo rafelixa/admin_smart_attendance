@@ -28,7 +28,7 @@ document.addEventListener('DOMContentLoaded', function () {
         makeClickable(signOut);
         signOut.addEventListener('click', function () {
             if (confirm('Are you sure you want to log out?')) {
-                window.location.href = '../login/index.html';
+                window.location.href = '/login';
             }
         });
     }
@@ -37,21 +37,21 @@ document.addEventListener('DOMContentLoaded', function () {
     if (requestListButton) {
         makeClickable(requestListButton);
         requestListButton.addEventListener('click', function () {
-            window.location.href = '../request_list/index.html';
+            window.location.href = '/request-list';
         });
     }
 
     if (userListButton) {
         makeClickable(userListButton);
         userListButton.addEventListener('click', function () {
-            window.location.href = '../userlist/index.html';
+            window.location.href = '/userlist';
         });
     }
 
     if (cameraButton) {
         makeClickable(cameraButton);
         cameraButton.addEventListener('click', function () {
-            window.location.href = '../camera/index.html';
+            window.location.href = '/camera';
         });
     }
 });
