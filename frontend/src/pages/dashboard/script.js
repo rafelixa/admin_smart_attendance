@@ -1,5 +1,12 @@
 // Dashboard script: handle sign-out and page navigation (correct relative paths)
-document.addEventListener('DOMContentLoaded', function () {
+document.addEventListener('DOMContentLoaded', async function () {
+    // Cek session, jika tidak login kosongkan konten dan redirect ke /login
+    if (!(await window.checkAuth?.())) {
+        document.body.innerHTML = '';
+        window.location.href = '/login';
+        return;
+    }
+
     const signOut = document.querySelector('.sign-out');
     const requestListButton = document.querySelector('.request-list-button');
     const userListButton = document.querySelector('.user-list-button');
@@ -23,12 +30,12 @@ document.addEventListener('DOMContentLoaded', function () {
         });
     }
 
-    // Sign out -> confirm then go to login
+    // Sign out -> confirm then logout (hapus session backend & localStorage)
     if (signOut) {
         makeClickable(signOut);
         signOut.addEventListener('click', function () {
             if (confirm('Are you sure you want to log out?')) {
-                window.location.href = '/login';
+                window.logout?.();
             }
         });
     }

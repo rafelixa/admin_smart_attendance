@@ -4,25 +4,8 @@
 // ========================================
 const API_URL = (typeof window !== 'undefined' && (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1')) ? 'http://localhost:3000/api' : '/api';
 
-// ========================================
-// AUTHENTICATION CHECK
-// ========================================
-function checkAuth() {
-  const userStr = localStorage.getItem('user');
-  if (!userStr) {
-    window.location.href = '/login';
-    return null;
-  }
-  
-  const user = JSON.parse(userStr);
-  if (user.role !== 'admin') {
-    alert('Access denied. Admin only.');
-    window.location.href = '/login';
-    return null;
-  }
-  
-  return user;
-}
+// AUTHENTICATION CHECK: now uses JWT session to backend
+
 
 // ========================================
 // GLOBAL VARIABLES
@@ -39,12 +22,13 @@ let currentYear = new Date().getFullYear();
 async function fetchPermissions(status = 'all') {
   try {
     showLoading();
-    
+    const token = localStorage.getItem('token');
     // Always fetch all permissions first to enable client-side filtering
     const response = await fetch(`${API_URL}/permissions`, {
       method: 'GET',
       headers: {
-        'Content-Type': 'application/json'
+        'Content-Type': 'application/json',
+        'Authorization': token ? `Bearer ${token}` : ''
       }
     });
 
@@ -58,15 +42,12 @@ async function fetchPermissions(status = 'all') {
 
     // Store all permissions
     allPermissions = data.data;
-    
     // Filter based on status if needed
     let filtered = allPermissions;
     if (status !== 'all') {
       filtered = allPermissions.filter(p => p.status === status);
     }
-    
     displayPermissions(filtered);
-    
   } catch (error) {
     console.error('Error fetching permissions:', error);
     showError('Connection error. Please check if backend is running.');
@@ -308,14 +289,16 @@ filterOptions.forEach(option => {
 // ========================================
 // INITIALIZE PAGE
 // ========================================
-document.addEventListener('DOMContentLoaded', function() {
-  // Check authentication
-  const user = checkAuth();
-  if (!user) return;
+document.addEventListener('DOMContentLoaded', async function() {
+  // Proteksi: cek session via backend JWT
+  if (!(await window.checkAuth?.())) {
+    document.body.innerHTML = '';
+    window.location.href = '/login';
+    return;
+  }
 
   // Initial load
   fetchPermissions('all');
-  
   console.log('[SUCCESS] Request List page initialized');
 });
 
@@ -504,23 +487,21 @@ document.getElementById('calendarOverlay').addEventListener('click', function() 
 // ========================================
 function filterByDate(date) {
   showLoading();
-  
   // Format date as YYYY-MM-DD
   const year = date.getFullYear();
   const month = String(date.getMonth() + 1).padStart(2, '0');
   const day = String(date.getDate()).padStart(2, '0');
   const dateStr = `${year}-${month}-${day}`;
-  
-  console.log('Filtering by date:', dateStr);
-  console.log('All permissions:', allPermissions);
-  
-  // Filter permissions by date
+  console.log('Filtering by date:', dateStr, 'and status:', currentFilter);
+  // Filter by date and status (if not 'all')
   const filtered = allPermissions.filter(permission => {
-    console.log('Comparing:', permission.permission_date, 'with', dateStr);
-    return permission.permission_date === dateStr;
+    const isSameDate = permission.permission_date === dateStr;
+    if (currentFilter && currentFilter !== 'all' && currentFilter !== 'date') {
+      return isSameDate && permission.status === currentFilter;
+    }
+    return isSameDate;
   });
-  
-  console.log(`Filtered by date ${dateStr}:`, filtered.length, 'results', filtered);
+  console.log(`Filtered by date ${dateStr} & status ${currentFilter}:`, filtered.length, 'results', filtered);
   displayPermissions(filtered);
 }
 

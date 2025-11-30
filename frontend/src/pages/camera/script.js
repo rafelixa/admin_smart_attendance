@@ -1,3 +1,134 @@
+// ========== FILTER EVENT LISTENERS =============
+document.addEventListener('DOMContentLoaded', function () {
+  // Filter button
+  const filterBtn = document.getElementById('filterBtn');
+  const filterOverlay = document.getElementById('filterOverlay');
+  const filterPopup = document.querySelector('.filter-popup');
+  if (filterBtn && filterPopup && filterOverlay) {
+    filterBtn.addEventListener('click', function () {
+      if (filterPopup.classList.contains('active')) {
+        filterPopup.classList.remove('active');
+        filterOverlay.classList.remove('active');
+      } else {
+        filterPopup.classList.add('active');
+        filterOverlay.classList.add('active');
+      }
+    });
+    filterOverlay.addEventListener('click', function () {
+      filterPopup.classList.remove('active');
+      filterOverlay.classList.remove('active');
+    });
+    // Calendar modal logic
+    let selectedDate = null;
+    let currentMonth = new Date().getMonth();
+    let currentYear = new Date().getFullYear();
+    filterPopup.querySelectorAll('.filter-option').forEach(option => {
+      option.addEventListener('click', function (event) {
+        const filterType = option.getAttribute('data-filter');
+        if (filterType === 'bydate') {
+          openCalendarModal();
+        } else {
+          filterBy(filterType, event);
+          filterPopup.classList.remove('active');
+          filterOverlay.classList.remove('active');
+        }
+      });
+    });
+    // Calendar modal events
+    function openCalendarModal() {
+      const modal = document.getElementById('calendarModal');
+      modal.classList.add('active');
+      renderCalendar();
+    }
+    function closeCalendarModal() {
+      const modal = document.getElementById('calendarModal');
+      modal.classList.remove('active');
+    }
+    function renderCalendar() {
+      const calendarDays = document.getElementById('calendarDays');
+      const calendarTitle = document.getElementById('calendarTitle');
+      const monthNames = ['January', 'February', 'March', 'April', 'May', 'June',
+        'July', 'August', 'September', 'October', 'November', 'December'];
+      calendarTitle.textContent = `${monthNames[currentMonth]} ${currentYear}`;
+      calendarDays.innerHTML = '';
+      const firstDay = new Date(currentYear, currentMonth, 1).getDay();
+      const daysInMonth = new Date(currentYear, currentMonth + 1, 0).getDate();
+      const prevMonthDays = new Date(currentYear, currentMonth, 0).getDate();
+      for (let i = firstDay - 1; i >= 0; i--) {
+        const day = document.createElement('div');
+        day.className = 'calendar-day other-month';
+        day.textContent = prevMonthDays - i;
+        calendarDays.appendChild(day);
+      }
+      const today = new Date();
+      for (let i = 1; i <= daysInMonth; i++) {
+        const day = document.createElement('div');
+        day.className = 'calendar-day';
+        day.textContent = i;
+        if (i === today.getDate() && currentMonth === today.getMonth() && currentYear === today.getFullYear()) {
+          day.classList.add('today');
+        }
+        if (selectedDate && i === selectedDate.getDate() && currentMonth === selectedDate.getMonth() && currentYear === selectedDate.getFullYear()) {
+          day.classList.add('selected');
+        }
+        day.addEventListener('click', function() {
+          document.querySelectorAll('.calendar-day.selected').forEach(d => d.classList.remove('selected'));
+          this.classList.add('selected');
+          selectedDate = new Date(currentYear, currentMonth, i);
+        });
+        calendarDays.appendChild(day);
+      }
+      const totalCells = calendarDays.children.length;
+      const remainingCells = 42 - totalCells;
+      for (let i = 1; i <= remainingCells; i++) {
+        const day = document.createElement('div');
+        day.className = 'calendar-day other-month';
+        day.textContent = i;
+        calendarDays.appendChild(day);
+      }
+    }
+    document.getElementById('prevMonth').addEventListener('click', function() {
+      currentMonth--;
+      if (currentMonth < 0) {
+        currentMonth = 11;
+        currentYear--;
+      }
+      renderCalendar();
+    });
+    document.getElementById('nextMonth').addEventListener('click', function() {
+      currentMonth++;
+      if (currentMonth > 11) {
+        currentMonth = 0;
+        currentYear++;
+      }
+      renderCalendar();
+    });
+    document.getElementById('cancelCalendar').addEventListener('click', function() {
+      closeCalendarModal();
+      filterPopup.classList.remove('active');
+      filterOverlay.classList.remove('active');
+    });
+    document.getElementById('confirmCalendar').addEventListener('click', function() {
+      if (!selectedDate) {
+        alert('Please select a date');
+        return;
+      }
+      filterBy('bydate', null, formatDateForApi(selectedDate));
+      closeCalendarModal();
+      filterPopup.classList.remove('active');
+      filterOverlay.classList.remove('active');
+    });
+    document.getElementById('calendarOverlay').addEventListener('click', function() {
+      closeCalendarModal();
+    });
+    function formatDateForApi(date) {
+      const year = date.getFullYear();
+      const month = String(date.getMonth() + 1).padStart(2, '0');
+      const day = String(date.getDate()).padStart(2, '0');
+      return `${year}-${month}-${day}`;
+    }
+  }
+});
 // ========================================
 // CONFIGURATION (development vs production)
 // use localhost during development, otherwise use relative '/api' so production routing works
@@ -7,25 +138,8 @@ let allLogs = [];
 let currentFilter = 'all';
 let refreshInterval;
 
-// ========================================
-// CHECK AUTHENTICATION
-// ========================================
-function checkAuth() {
-  const user = JSON.parse(localStorage.getItem('user'));
-  
-  if (!user) {
-    window.location.href = '/login';
-    return false;
-  }
-  
-  if (user.role !== 'admin') {
-    alert('Access denied. Admin only.');
-    window.location.href = '/login';
-    return false;
-  }
-  
-  return true;
-}
+// AUTHENTICATION CHECK: now uses JWT session to backend
+
 
 // ========================================
 // FETCH ATTENDANCE LOGS
@@ -33,14 +147,14 @@ function checkAuth() {
 async function fetchAttendanceLogs(status = 'all') {
   try {
     const url = `${API_URL}/attendance/logs${status !== 'all' ? `?status=${status}` : ''}`;
-    const response = await fetch(url);
-    
+    const token = localStorage.getItem('token');
+    const response = await fetch(url, {
+      headers: { 'Authorization': token ? `Bearer ${token}` : '' }
+    });
     if (!response.ok) {
       throw new Error(`HTTP error! status: ${response.status}`);
     }
-    
     const result = await response.json();
-    
     if (result.success) {
       allLogs = result.data;
       displayLogs(allLogs);
@@ -100,42 +214,51 @@ function displayLogs(logs) {
 // ========================================
 // FILTER FUNCTIONS
 // ========================================
-function toggleFilter() {
-  const popup = document.querySelector('.filter-popup');
-  const overlay = document.querySelector('.filter-overlay');
-  
-  if (popup.style.display === 'block') {
-    popup.style.display = 'none';
-    overlay.style.display = 'none';
-  } else {
-    popup.style.display = 'block';
-    overlay.style.display = 'block';
-  }
-}
+// Animasi filter popup kini pakai class 'active' (lihat event listener di atas)
 
-function closeFilter() {
-  document.querySelector('.filter-popup').style.display = 'none';
-  document.querySelector('.filter-overlay').style.display = 'none';
-}
-
-async function filterBy(status) {
+async function filterBy(status, event) {
   console.log('Filter by:', status);
-  
-  // Update current filter
   currentFilter = status;
-  
-  // Remove active class from all options
   document.querySelectorAll('.filter-option').forEach(option => {
     option.classList.remove('active');
   });
-  
-  // Add active class to clicked option
-  event.target.classList.add('active');
-  
-  // Fetch filtered data from backend
-  await fetchAttendanceLogs(status);
-  
-  closeFilter();
+  if (event && event.target) {
+    event.target.classList.add('active');
+  } else {
+    // fallback: set active by data-filter
+    const activeOption = document.querySelector(`.filter-option[data-filter="${status}"]`);
+    if (activeOption) activeOption.classList.add('active');
+  }
+  if (status === 'bydate' && arguments.length > 2) {
+    // Filter by date
+    await fetchAttendanceLogsByDate(arguments[2]);
+  } else {
+    await fetchAttendanceLogs(status);
+  }
+}
+
+// Fetch logs by date
+async function fetchAttendanceLogsByDate(dateStr) {
+  try {
+    const url = `${API_URL}/attendance/logs?date=${dateStr}`;
+    const token = localStorage.getItem('token');
+    const response = await fetch(url, {
+      headers: { 'Authorization': token ? `Bearer ${token}` : '' }
+    });
+    if (!response.ok) {
+      throw new Error(`HTTP error! status: ${response.status}`);
+    }
+    const result = await response.json();
+    if (result.success) {
+      allLogs = result.data;
+      displayLogs(allLogs);
+    } else {
+      throw new Error(result.message || 'Failed to fetch logs');
+    }
+  } catch (error) {
+    console.error('Error fetching attendance logs by date:', error);
+    showError('Failed to load attendance logs by date.');
+  }
 }
 
 // ========================================
@@ -175,16 +298,17 @@ function stopAutoRefresh() {
 // ========================================
 // INITIALIZATION
 // ========================================
-document.addEventListener('DOMContentLoaded', () => {
-  // Check authentication
-  if (!checkAuth()) return;
-  
+document.addEventListener('DOMContentLoaded', async function () {
+  // Proteksi: cek session via backend JWT
+  if (!(await window.checkAuth?.())) {
+    document.body.innerHTML = '';
+    window.location.href = '/login';
+    return;
+  }
   // Initial fetch
   fetchAttendanceLogs('all');
-  
   // Start auto-refresh
   startAutoRefresh();
-  
   console.log('Camera page initialized successfully');
 });
 

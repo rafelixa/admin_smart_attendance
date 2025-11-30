@@ -37,31 +37,26 @@ async function fetchPermissionDetail(permissionId) {
   try {
     console.log('[INFO] Fetching permission detail for ID:', permissionId);
     showLoading();
-    
+    const token = localStorage.getItem('token');
     const url = `${API_URL}/permissions/${permissionId}`;
     console.log('📡 API URL:', url);
-    
     const response = await fetch(url, {
       method: 'GET',
       headers: {
-        'Content-Type': 'application/json'
+        'Content-Type': 'application/json',
+        'Authorization': token ? `Bearer ${token}` : ''
       }
     });
-
     console.log('📥 Response status:', response.status);
-    
     const data = await response.json();
     console.log('📦 Response data:', data);
-
     if (!data.success) {
       console.error('[ERROR] Failed to fetch permission detail:', data.message);
       showError('Failed to load permission detail: ' + data.message);
       return null;
     }
-
     console.log('[SUCCESS] Permission detail fetched successfully');
     return data.data;
-    
   } catch (error) {
     console.error('[ERROR] Error fetching permission detail:', error);
     showError('Connection error. Please check if backend is running.');

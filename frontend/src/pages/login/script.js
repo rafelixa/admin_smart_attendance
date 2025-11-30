@@ -1,5 +1,12 @@
 // Login page script: password toggle, validation and navigation to dashboard
-document.addEventListener('DOMContentLoaded', function () {
+
+document.addEventListener('DOMContentLoaded', async function () {
+    // Jika sudah login/session valid, redirect ke dashboard
+    if (window.checkAuth && await window.checkAuth()) {
+        window.location.href = '/dashboard';
+        return;
+    }
+
     const loginForm = document.getElementById('loginForm');
     const passwordToggle = document.getElementById('passwordToggle');
     const passwordInput = document.getElementById('password');
@@ -59,15 +66,29 @@ document.addEventListener('DOMContentLoaded', function () {
                 const data = await response.json();
 
                 if (data.success) {
-                    // Store user data in localStorage
+                    // Store user data and token in localStorage
                     localStorage.setItem('user', JSON.stringify(data.data.user));
-                    
+                    localStorage.setItem('token', data.data.token);
                     showSuccess();
-                    
-                    // Redirect to dashboard
-                    setTimeout(() => {
-                        window.location.href = '/dashboard';
-                    }, 500);
+                    // Immediately verify token by calling /auth/me and show server message on failure
+                    try {
+                        const verifyRes = await fetch(`${API_URL}/auth/me`, {
+                            headers: { 'Authorization': `Bearer ${data.data.token}` }
+                        });
+                        const verifyData = await verifyRes.json();
+                        console.log('verify /auth/me response', verifyRes.status, verifyData);
+                        if (verifyRes.ok && verifyData.success && verifyData.data && verifyData.data.user) {
+                            window.location.href = '/dashboard';
+                            return;
+                        }
+                        // If verification failed, show server-provided message
+                        showError(verifyData.message || 'Session error, please login again.');
+                        resetButton();
+                    } catch (err) {
+                        console.error('Error verifying session after login:', err);
+                        showError('Session error, please login again.');
+                        resetButton();
+                    }
                 } else {
                     // Login failed - show specific error message
                     showError(data.message || 'Invalid username or password');
@@ -83,7 +104,7 @@ document.addEventListener('DOMContentLoaded', function () {
         });
     }
 
-    function showError(message = 'Invalid username or password') {
+    function showError(message = 'Invalid email or password') {
         if (!errorMessage) return;
         errorMessage.textContent = message;
         errorMessage.style.display = 'block';

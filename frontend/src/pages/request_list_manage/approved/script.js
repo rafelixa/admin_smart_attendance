@@ -36,11 +36,12 @@ function getPermissionIdFromURL() {
 async function fetchPermissionDetail(permissionId) {
   try {
     showLoading();
-    
+    const token = localStorage.getItem('token');
     const response = await fetch(`${API_URL}/permissions/${permissionId}`, {
       method: 'GET',
       headers: {
-        'Content-Type': 'application/json'
+        'Content-Type': 'application/json',
+        'Authorization': token ? `Bearer ${token}` : ''
       }
     });
 
@@ -53,7 +54,6 @@ async function fetchPermissionDetail(permissionId) {
     }
 
     return data.data;
-    
   } catch (error) {
     console.error('Error fetching permission detail:', error);
     showError('Connection error. Please check if backend is running.');

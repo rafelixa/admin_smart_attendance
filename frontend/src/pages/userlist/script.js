@@ -1,13 +1,20 @@
 function toggleFilter() {
   const popup = document.querySelector('.filter-popup');
   const overlay = document.querySelector('.filter-overlay');
-  
   if (popup.style.display === 'block') {
     popup.style.display = 'none';
     overlay.style.display = 'none';
   } else {
     popup.style.display = 'block';
     overlay.style.display = 'block';
+    // Tambahkan event listener agar popup tertutup saat opsi diklik
+    popup.querySelectorAll('.filter-option').forEach(option => {
+      option.onclick = function(event) {
+        filterBy(option.getAttribute('data-filter'));
+        popup.style.display = 'none';
+        overlay.style.display = 'none';
+      };
+    });
   }
 }
 
@@ -44,25 +51,8 @@ async function filterBy(tolerance) {
 // ========================================
 const API_URL = (typeof window !== 'undefined' && (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1')) ? 'http://localhost:3000/api' : '/api';
 
-// ========================================
-// AUTHENTICATION CHECK
-// ========================================
-function checkAuth() {
-  const userStr = localStorage.getItem('user');
-  if (!userStr) {
-    window.location.href = '/login';
-    return null;
-  }
-  
-  const user = JSON.parse(userStr);
-  if (user.role !== 'admin') {
-    alert('Access denied. Admin only.');
-    window.location.href = '/login';
-    return null;
-  }
-  
-  return user;
-}
+// AUTHENTICATION CHECK: now uses JWT session to backend
+
 
 // ========================================
 // FETCH STUDENTS WITH TOLERANCE DATA
@@ -70,12 +60,13 @@ function checkAuth() {
 async function fetchStudentsWithTolerance(filter = 'all') {
   try {
     showLoading();
-    
+    const token = localStorage.getItem('token');
     // Fetch all students first
     const response = await fetch(`${API_URL}/users/students`, {
       method: 'GET',
       headers: {
-        'Content-Type': 'application/json'
+        'Content-Type': 'application/json',
+        'Authorization': token ? `Bearer ${token}` : ''
       }
     });
 
@@ -88,14 +79,14 @@ async function fetchStudentsWithTolerance(filter = 'all') {
     }
 
     const students = data.data.students;
-    
     // Fetch tolerance info for each student
     const studentsWithTolerance = await Promise.all(
       students.map(async (student) => {
         try {
-          const detailResponse = await fetch(`${API_URL}/users/students/${student.user_id}`);
+          const detailResponse = await fetch(`${API_URL}/users/students/${student.user_id}`, {
+            headers: { 'Authorization': token ? `Bearer ${token}` : '' }
+          });
           const detailData = await detailResponse.json();
-          
           if (detailData.success) {
             return {
               ...student,
@@ -111,24 +102,18 @@ async function fetchStudentsWithTolerance(filter = 'all') {
     );
 
     allStudentsData = studentsWithTolerance;
-    
     // Apply filter
     let filteredStudents = studentsWithTolerance;
-    
     if (filter === 'past') {
-      // Show students who exceeded tolerance (> 3)
       filteredStudents = studentsWithTolerance.filter(s => 
         s.tolerance && s.tolerance.exceeded && s.tolerance.exceeded.length > 0
       );
     } else if (filter === 'reach') {
-      // Show students who reached tolerance (= 3)
       filteredStudents = studentsWithTolerance.filter(s => 
         s.tolerance && s.tolerance.reached && s.tolerance.reached.length > 0
       );
     }
-    
     displayStudents(filteredStudents);
-    
   } catch (error) {
     console.error('Error fetching students:', error);
     showError('Connection error. Please check if backend is running.');
@@ -184,7 +169,6 @@ function displayStudents(students) {
     row.innerHTML = `
       <div class="frame-5"><div class="text-wrapper-3">${student.nim || '-'}</div></div>
       <div class="frame-5"><div class="text-wrapper-3">${student.full_name}</div></div>
-      <div class="frame-5"><div class="text-wrapper-3">2023</div></div>
     `;
 
     // Click to view detail
@@ -255,14 +239,50 @@ function showError(message) {
 // ========================================
 // INITIALIZE PAGE
 // ========================================
-document.addEventListener('DOMContentLoaded', function() {
-  // Check authentication
-  const user = checkAuth();
-  if (!user) return;
 
-  // Fetch students
+// ========================================
+// FILTER OPTION EVENT LISTENER
+// ========================================
+document.addEventListener('DOMContentLoaded', async function () {
+  // Proteksi: cek session via backend JWT
+  if (!(await window.checkAuth?.())) {
+    document.body.innerHTML = '';
+    window.location.href = '/login';
+    return;
+  }
+
+  // Set filter default aktif
+  const defaultFilter = document.querySelector('.filter-option[data-filter="all"]');
+  if (defaultFilter) defaultFilter.classList.add('active');
+
+    // Event listener tombol filter
+    const filterButton = document.getElementById('filterButton');
+    if (filterButton) {
+      filterButton.addEventListener('click', function (e) {
+        e.stopPropagation();
+        toggleFilter();
+      });
+    }
+
+    // Event listener overlay untuk menutup popup
+    const filterOverlay = document.getElementById('filterOverlay');
+    if (filterOverlay) {
+      filterOverlay.addEventListener('click', function () {
+        closeFilter();
+      });
+    }
+
+  // Tambahkan event listener ke semua filter-option
+  document.querySelectorAll('.filter-option').forEach(option => {
+    option.addEventListener('click', function (e) {
+      e.stopPropagation();
+      const filterValue = this.getAttribute('data-filter');
+      filterBy(filterValue);
+    });
+  });
+
+  // Fetch students awal
   fetchStudents();
-
-  // Auto-refresh every 30 seconds
+  // Auto-refresh every 30 detik
   setInterval(fetchStudents, 30000);
 });

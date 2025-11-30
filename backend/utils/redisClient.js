@@ -29,66 +29,6 @@ async function tryConnect() {
     connected = true;
     console.log('Redis client connected');
   } catch (err) {
+
     connected = false;
-    client = null;
-    console.warn('Could not connect to Redis, falling back to in-memory store:', err.message);
-  }
-}
 
-// Start async connect but do not throw if it fails
-tryConnect();
-
-// Helper TTL cleanup for memory store
-function setMemoryWithTTL(key, value, seconds) {
-  memoryStore.set(key, value);
-  if (seconds && seconds > 0) {
-    setTimeout(() => memoryStore.delete(key), seconds * 1000);
-  }
-}
-
-module.exports = {
-  async get(key) {
-    if (connected && client) {
-      try {
-        return await client.get(key);
-      } catch (err) {
-        console.warn('Redis GET failed, using memory fallback:', err.message);
-      }
-    }
-    return memoryStore.has(key) ? memoryStore.get(key) : null;
-  },
-
-  async set(key, value, options = {}) {
-    if (connected && client) {
-      try {
-        // node-redis supports: client.set(key, value, { EX: seconds })
-        if (options.EX) {
-          return await client.set(key, value, { EX: options.EX });
-        }
-        return await client.set(key, value);
-      } catch (err) {
-        console.warn('Redis SET failed, using memory fallback:', err.message);
-      }
-    }
-    // Fallback: store string value and honor EX option
-    const str = typeof value === 'string' ? value : JSON.stringify(value);
-    setMemoryWithTTL(key, str, options.EX || 0);
-    return 'OK';
-  },
-
-  async del(key) {
-    if (connected && client) {
-      try {
-        return await client.del(key);
-      } catch (err) {
-        console.warn('Redis DEL failed, using memory fallback:', err.message);
-      }
-    }
-    return memoryStore.delete(key) ? 1 : 0;
-  },
-
-  // Expose connection status for debugging
-  isConnected() {
-    return connected && !!client;
-  }
-};

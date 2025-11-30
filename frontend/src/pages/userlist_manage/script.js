@@ -6,25 +6,8 @@
 // API Configuration (dev vs prod)
 const API_URL = (typeof window !== 'undefined' && (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1')) ? 'http://localhost:3000/api' : '/api';
 
-// ========================================
-// AUTHENTICATION CHECK
-// ========================================
-function checkAuth() {
-  const userStr = localStorage.getItem('user');
-  if (!userStr) {
-    window.location.href = '/login';
-    return null;
-  }
-  
-  const user = JSON.parse(userStr);
-  if (user.role !== 'admin') {
-    alert('Access denied. Admin only.');
-    window.location.href = '/login';
-    return null;
-  }
-  
-  return user;
-}
+// AUTHENTICATION CHECK: now uses JWT session to backend
+
 
 // ========================================
 // GET USER ID FROM URL
@@ -39,15 +22,15 @@ function getUserIdFromURL() {
 // ========================================
 async function fetchStudentDetail(userId) {
   try {
+    const token = localStorage.getItem('token');
     const response = await fetch(`${API_URL}/users/students/${userId}`, {
       method: 'GET',
       headers: {
-        'Content-Type': 'application/json'
+        'Content-Type': 'application/json',
+        'Authorization': token ? `Bearer ${token}` : ''
       }
     });
-
     const data = await response.json();
-
     if (data.success) {
       displayStudentDetail(data.data);
     } else {
@@ -67,13 +50,19 @@ async function fetchStudentDetail(userId) {
 function displayStudentDetail(data) {
   const { student, courses, tolerance } = data;
 
-  // Update basic info
-  const detailRows = document.querySelectorAll('.detail-row');
-  if (detailRows.length >= 4) {
-    detailRows[0].querySelector('.detail-value').textContent = student.full_name;
-    detailRows[1].querySelector('.detail-value').textContent = student.nim;
-    detailRows[2].querySelector('.detail-value').textContent = '2023';
-    detailRows[3].querySelector('.detail-value').textContent = 'Faculty of Information and Technology/ Informatics';
+  // Render detail info secara dinamis
+  const detailGrid = document.querySelector('.detail-grid');
+  if (detailGrid) {
+    detailGrid.innerHTML = `
+      <div class="detail-row">
+        <span class="detail-label">Name</span>
+        <span class="detail-value">${student.full_name || '-'}</span>
+      </div>
+      <div class="detail-row">
+        <span class="detail-label">NIM</span>
+        <span class="detail-value">${student.nim || '-'}</span>
+      </div>
+    `;
   }
 
   // Update class information table
@@ -206,11 +195,13 @@ function createAlert(type, title, subtitle, courses) {
 // ========================================
 // INITIALIZE PAGE
 // ========================================
-document.addEventListener('DOMContentLoaded', function() {
-  // Check authentication
-  const user = checkAuth();
-  if (!user) return;
-
+  document.addEventListener('DOMContentLoaded', async function () {
+  // Proteksi: cek session via backend JWT
+  if (!(await window.checkAuth?.())) {
+    document.body.innerHTML = '';
+    window.location.href = '/login';
+    return;
+  }
   // Get user ID from URL
   const userId = getUserIdFromURL();
   if (!userId) {
@@ -218,10 +209,8 @@ document.addEventListener('DOMContentLoaded', function() {
     window.location.href = '/userlist';
     return;
   }
-
   // Fetch student detail
   fetchStudentDetail(userId);
-
   // Auto-refresh every 30 seconds
   setInterval(() => {
     fetchStudentDetail(userId);

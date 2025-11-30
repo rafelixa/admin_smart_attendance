@@ -1,6 +1,6 @@
-// Middleware for authentication and authorization using JWT + Redis session
+
+// Middleware for authentication and authorization using JWT (stateless)
 const jwt = require('jsonwebtoken');
-const redisClient = require('../utils/redisClient');
 const supabase = require('../config/db');
 
 const JWT_SECRET = process.env.JWT_SECRET || 'change-me-to-secure-secret';
@@ -16,12 +16,8 @@ const verifyToken = async (req, res, next) => {
     try {
       decoded = jwt.verify(token, JWT_SECRET);
     } catch (err) {
-      return res.status(401).json({ success: false, message: 'Invalid token', error: err.message });
+      return res.status(401).json({ success: false, message: 'Invalid or expired token', error: err.message });
     }
-
-    // Check session in Redis
-    const session = await redisClient.get(`session:${decoded.jti}`);
-    if (!session) return res.status(401).json({ success: false, message: 'Session invalid or expired' });
 
     // Optionally fetch fresh user from DB
     const { data: users } = await supabase.from('users').select('*').eq('user_id', decoded.user_id);

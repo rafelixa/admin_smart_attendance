@@ -1,0 +1,30 @@
+/* Minimal global stylesheet to prevent 404 and provide base styles */
+:root{
+  --bg:#f8f9fa;
+  --text:#212529;
+  --muted:#6c757d;
+  --primary:#007bff;
+}
+html,body{
+  height:100%;
+  margin:0;
+  font-family: Inter, system-ui, -apple-system, 'Segoe UI', Roboto, 'Helvetica Neue', Arial;
+  background:var(--bg);
+  color:var(--text);
+  -webkit-font-smoothing:antialiased;
+}
+a{ color:var(--primary); text-decoration:none }
+img{ max-width:100%; height:auto }
+
+/* Basic container used across pages */
+.container{ max-width:1100px; margin:0 auto; padding:1rem }
+
+/* Small utility classes used by pages */
+.text-muted{ color:var(--muted) }
+.hidden{ display:none }
+.btn{ display:inline-block; padding:.5rem .75rem; border-radius:6px; cursor:pointer; }
+
+/* Login page small tweaks */
+.login-button{ background:var(--primary); color:#fff; border:none; padding:.6rem 1rem; border-radius:6px }
+
+/* Keep this file intentionally small; page-specific CSS lives near each page */

@@ -33,14 +33,14 @@
         <div class="div">
           <div class="text-wrapper">User Info</div>
           <div class="filter-container">
-            <div class="vector-wrapper" onclick="toggleFilter()">
+            <div class="vector-wrapper" id="filterButton">
               <i class="fas fa-filter vector"></i>
             </div>
-            <div class="filter-overlay" onclick="closeFilter()"></div>
-            <div class="filter-popup">
-              <div class="filter-option" onclick="filterBy('all')">All</div>
-              <div class="filter-option" onclick="filterBy('past')">Past tolerance</div>
-              <div class="filter-option" onclick="filterBy('reach')">Reach tolerance</div>
+            <div class="filter-overlay" id="filterOverlay"></div>
+            <div class="filter-popup" id="filterPopup">
+              <div class="filter-option" data-filter="all">All</div>
+              <div class="filter-option" data-filter="past">Past tolerance</div>
+              <div class="filter-option" data-filter="reach">Reach tolerance</div>
             </div>
           </div>
         </div>
@@ -53,9 +53,6 @@
             <div class="div-wrapper">
               <div class="text-wrapper-2">Name</div>
             </div>
-            <div class="div-wrapper">
-              <div class="text-wrapper-2">Cohort</div>
-            </div>
           </div>
           
           <!-- Data Rows - Will be populated by JavaScript from API -->
@@ -67,7 +64,7 @@
       </div>
     </div>
     
-    <script src="/src/pages/userlist/script.js"></script>
-    <script src="../../../navigation.js"></script>
+    <script src="/auth.js"></script>
+    <script type="module" src="/src/pages/userlist/script.js"></script>
   </body>
 </html>

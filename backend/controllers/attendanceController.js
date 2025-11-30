@@ -5,7 +5,7 @@ const supabase = require('../config/db');
 // ========================================
 const getAttendanceLogs = async (req, res) => {
   try {
-    const { status } = req.query; // Optional filter parameter
+    const { status, date } = req.query; // Optional filter parameter
 
     let query = supabase
       .from('attendances')
@@ -36,7 +36,12 @@ const getAttendanceLogs = async (req, res) => {
       .in('status', ['present', 'late']) // Only show present and late status
       .order('attendance_date', { ascending: false })
       .order('recorded_at', { ascending: false })
-      .limit(100); // Limit to latest 100 records
+      .limit(100);
+
+    // Filter by date if provided
+    if (date) {
+      query = query.eq('attendance_date', date);
+    }
 
     // Apply status filter if provided
     if (status && status !== 'all') {
@@ -56,25 +61,25 @@ const getAttendanceLogs = async (req, res) => {
 
     // Format the response
     const formattedLogs = data.map(log => {
+      // Only include logs with complete join data
+      if (!log.enrollments || !log.enrollments.users || !log.enrollments.courses) return null;
       const date = log.attendance_date 
         ? new Date(log.attendance_date).toLocaleDateString('en-CA')
         : '-';
-
       const time = log.recorded_at
         ? new Date(log.recorded_at).toLocaleTimeString('en-GB', { hour12: false })
         : '-';
-
       return {
         id: log.attendance_id,
-        nim: log.enrollments?.users?.nim || log.enrollments?.users?.user_id || '-',
-        name: log.enrollments?.users?.full_name || 'Unknown',
+        nim: log.enrollments.users.nim,
+        name: log.enrollments.users.full_name,
         date: date,
         time: time,
-        status: log.status || 'unknown',
-        course_code: log.enrollments?.courses?.course_code || '-',
-        course_name: log.enrollments?.courses?.course_name || '-'
+        status: log.status,
+        course_code: log.enrollments.courses.course_code,
+        course_name: log.enrollments.courses.course_name
       };
-    });
+    }).filter(Boolean);
 
     res.json({
       success: true,
