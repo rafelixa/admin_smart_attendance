@@ -1,0 +1,475 @@
+.userlist-manage {
+  background-color: #f6f6f6;
+  width: 100%;
+  min-height: 100vh;
+  position: relative;
+  font-family: 'Poppins', sans-serif;
+}
+
+/* Navigation Bar Styles */
+.userlist-manage .rectangle {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 96px;
+  background-color: #2c2d32;
+}
+
+.userlist-manage .back-button {
+  position: absolute;
+  top: 28px;
+  left: 60px;
+  font-size: 24px;
+  color: #ffffff;
+  text-decoration: none;
+  padding: 8px;
+  border-radius: 50%;
+  transition: background-color 0.2s ease, transform 0.2s ease;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 40px;
+  height: 40px;
+}
+
+.userlist-manage .back-button:hover {
+  background-color: rgba(255, 255, 255, 0.1);
+  transform: translateX(-2px);
+}
+
+.userlist-manage .frame-12 {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 24px;
+  position: absolute;
+  top: 22px;
+  left: 291px;
+}
+
+.userlist-manage .div-wrapper-2 {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  padding: 8px 40px;
+  position: relative;
+  flex: 0 0 auto;
+  text-decoration: none;
+  cursor: pointer;
+  transition: opacity 0.2s ease;
+}
+
+.userlist-manage .div-wrapper-2:hover {
+  opacity: 0.8;
+}
+
+.userlist-manage .div-wrapper-2:focus-visible {
+  outline: 2px solid #ffffff;
+  outline-offset: 2px;
+}
+
+.userlist-manage .div-wrapper-2.active .text-wrapper-8 {
+  color: #e0697e;
+}
+
+.userlist-manage .text-wrapper-7,
+.userlist-manage .text-wrapper-9 {
+  position: relative;
+  width: fit-content;
+  margin-top: -1.00px;
+  font-family: "Poppins-Regular", Helvetica;
+  font-weight: 400;
+  color: #ffffff;
+  font-size: 24px;
+  text-align: center;
+  letter-spacing: 0;
+  line-height: normal;
+}
+
+.userlist-manage .text-wrapper-8 {
+  font-family: "Poppins-Regular", Helvetica;
+  font-weight: 400;
+  color: #e0697e;
+  font-size: 24px;
+  text-align: center;
+  position: relative;
+  width: fit-content;
+  margin-top: -1.00px;
+  letter-spacing: 0;
+  line-height: normal;
+}
+
+/* Main Content */
+.userlist-manage .content {
+  padding: 120px 60px 40px;
+  max-width: 1200px;
+  margin: 0 auto;
+}
+
+/* Section Containers */
+.userlist-manage .detail-container,
+.userlist-manage .class-info-container,
+.userlist-manage .condition-container {
+  background-color: #ffffff;
+  border-radius: 12px;
+  padding: 28px 36px;
+  margin-bottom: 24px;
+  box-shadow: 0 2px 12px rgba(0, 0, 0, 0.06);
+  border: 1px solid #e9ecef;
+}
+
+.userlist-manage .section-title {
+  font-family: 'Poppins', sans-serif;
+  font-weight: 600;
+  font-size: 22px;
+  color: #2c2d32;
+  margin-bottom: 24px;
+  letter-spacing: -0.3px;
+  padding-bottom: 12px;
+  border-bottom: 2px solid #f0f0f0;
+}
+
+/* Detail Grid */
+.userlist-manage .detail-grid {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.userlist-manage .detail-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 8px 0;
+  border-bottom: 1px solid #f0f0f0;
+}
+
+.userlist-manage .detail-row:last-child {
+  border-bottom: none;
+}
+
+.userlist-manage .detail-label {
+  font-family: 'Poppins', sans-serif;
+  font-weight: 400;
+  font-size: 16px;
+  color: #666666;
+  flex: 0 0 200px;
+}
+
+.userlist-manage .detail-value {
+  font-family: 'Poppins', sans-serif;
+  font-weight: 400;
+  font-size: 16px;
+  color: #2c2d32;
+  text-align: right;
+  flex: 1;
+}
+
+/* Class Information Table */
+.userlist-manage .class-table {
+  width: 100%;
+}
+
+.userlist-manage .table-header {
+  display: grid;
+  grid-template-columns: 100px 2fr 80px 80px 80px 80px 80px;
+  gap: 12px;
+  margin-bottom: 12px;
+  padding: 12px 8px;
+  border-bottom: 2px solid #e9ecef;
+  background-color: #f8f9fa;
+  border-radius: 8px;
+}
+
+.userlist-manage .header-cell {
+  font-family: 'Poppins', sans-serif;
+  font-weight: 600;
+  font-size: 14px;
+  text-align: center;
+  padding: 4px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.userlist-manage .class-code-col {
+  text-align: left;
+  justify-content: flex-start;
+  color: #2c2d32;
+}
+
+.userlist-manage .class-name-col {
+  text-align: left;
+  justify-content: flex-start;
+  color: #2c2d32;
+}
+
+.userlist-manage .present-col { color: #10b981; }
+.userlist-manage .late-col { color: #f59e0b; }
+.userlist-manage .absent-col { color: #ef4444; }
+.userlist-manage .sick-col { color: #8A38F5; }
+.userlist-manage .excused-col { color: #6b7280; }
+
+.userlist-manage .table-row {
+  display: grid;
+  grid-template-columns: 100px 2fr 80px 80px 80px 80px 80px;
+  gap: 12px;
+  margin-bottom: 8px;
+  padding: 12px 8px;
+  border-bottom: 1px solid #f0f0f0;
+  transition: background-color 0.2s ease;
+  border-radius: 6px;
+}
+
+.userlist-manage .table-row:hover {
+  background-color: #f8f9fa;
+}
+
+.userlist-manage .table-row:last-child {
+  border-bottom: none;
+}
+
+.userlist-manage .table-cell {
+  font-family: 'Poppins', sans-serif;
+  font-weight: 400;
+  font-size: 14px;
+  text-align: center;
+  padding: 4px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.userlist-manage .class-code {
+  text-align: left;
+  justify-content: flex-start;
+  font-weight: 500;
+  color: #2c2d32;
+}
+
+.userlist-manage .class-name {
+  text-align: left;
+  justify-content: flex-start;
+  font-weight: 500;
+  color: #2c2d32;
+}
+
+.userlist-manage .present-cell { color: #10b981; font-weight: 500; }
+.userlist-manage .late-cell { color: #f59e0b; font-weight: 500; }
+.userlist-manage .absent-cell { color: #ef4444; font-weight: 500; }
+.userlist-manage .sick-cell { color: #8A38F5; font-weight: 500; }
+.userlist-manage .excused-cell { color: #6b7280; font-weight: 500; }
+
+/* Condition Section */
+.userlist-manage .condition-description {
+  font-family: 'Poppins', sans-serif;
+  font-weight: 400;
+  font-size: 16px;
+  color: #2c2d32;
+  line-height: 1.6;
+  margin: 0;
+}
+
+.userlist-manage .condition-alerts {
+  margin-top: 20px;
+}
+
+.userlist-manage .alert {
+  background-color: #f8f9fa;
+  border-radius: 12px;
+  padding: 20px;
+  margin-bottom: 16px;
+  border-left: 5px solid;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.08);
+}
+
+.userlist-manage .alert.exceeded {
+  border-left-color: #ef4444;
+  background-color: #fef2f2;
+  border-color: #ef4444;
+}
+
+.userlist-manage .alert.reached {
+  border-left-color: #f59e0b;
+  background-color: #fffbeb;
+  border-color: #f59e0b;
+}
+
+.userlist-manage .alert-header {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin-bottom: 8px;
+}
+
+.userlist-manage .alert-icon {
+  font-size: 20px;
+}
+
+.userlist-manage .alert.exceeded .alert-icon {
+  color: #ef4444;
+}
+
+.userlist-manage .alert.reached .alert-icon {
+  color: #f59e0b;
+}
+
+.userlist-manage .alert-title {
+  font-family: 'Poppins', sans-serif;
+  font-weight: 600;
+  font-size: 18px;
+  margin: 0;
+}
+
+.userlist-manage .alert.exceeded .alert-title {
+  color: #ef4444;
+}
+
+.userlist-manage .alert.reached .alert-title {
+  color: #f59e0b;
+}
+
+.userlist-manage .alert-subtitle {
+  font-family: 'Poppins', sans-serif;
+  font-weight: 400;
+  font-size: 14px;
+  color: #6b7280;
+  margin: 8px 0 16px 0;
+  line-height: 1.5;
+}
+
+.userlist-manage .alert-classes {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.userlist-manage .class-alert-item {
+  background-color: rgba(255, 255, 255, 0.8);
+  border-radius: 8px;
+  padding: 16px;
+  border: 1px solid rgba(0, 0, 0, 0.1);
+}
+
+.userlist-manage .class-alert-name {
+  font-family: 'Poppins', sans-serif;
+  font-weight: 500;
+  font-size: 16px;
+  color: #2c2d32;
+}
+
+.userlist-manage .class-alert-details {
+  display: flex;
+  gap: 16px;
+  font-family: 'Poppins', sans-serif;
+  font-weight: 400;
+  font-size: 14px;
+}
+
+.userlist-manage .class-alert-late {
+  color: #f59e0b;
+}
+
+.userlist-manage .class-alert-absent {
+  color: #ef4444;
+}
+
+.userlist-manage .class-alert-total {
+  font-weight: 600;
+  color: #2c2d32;
+  padding: 4px 8px;
+  background-color: rgba(0, 0, 0, 0.1);
+  border-radius: 4px;
+}
+
+.userlist-manage .class-alert-reasons {
+  margin-top: 8px;
+  padding: 8px 12px;
+  background-color: rgba(0, 0, 0, 0.05);
+  border-radius: 6px;
+  border-left: 3px solid;
+}
+
+.userlist-manage .alert.exceeded .class-alert-reasons {
+  border-left-color: #ef4444;
+}
+
+.userlist-manage .alert.reached .class-alert-reasons {
+  border-left-color: #f59e0b;
+}
+
+.userlist-manage .class-alert-reason {
+  font-family: 'Poppins', sans-serif;
+  font-weight: 500;
+  font-size: 12px;
+  margin-bottom: 4px;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.userlist-manage .class-alert-reason:last-child {
+  margin-bottom: 0;
+}
+
+.userlist-manage .alert.exceeded .class-alert-reason {
+  color: #dc2626;
+}
+
+.userlist-manage .alert.reached .class-alert-reason {
+  color: #d97706;
+}
+
+.userlist-manage .class-alert-reason i {
+  font-size: 10px;
+}
+
+/* Responsive Design */
+@media (max-width: 768px) {
+  .userlist-manage .content {
+    padding: 120px 20px 20px;
+  }
+
+  .userlist-manage .detail-row {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 8px;
+  }
+
+  .userlist-manage .detail-label {
+    flex: unset;
+  }
+
+  .userlist-manage .detail-value {
+    text-align: left;
+  }
+
+  .userlist-manage .table-header,
+  .userlist-manage .table-row {
+    grid-template-columns: 80px 1.5fr 60px 60px 60px 60px 60px;
+    gap: 6px;
+  }
+
+  .userlist-manage .header-cell,
+  .userlist-manage .table-cell {
+    font-size: 12px;
+    padding: 4px 2px;
+  }
+
+  .userlist-manage .frame-12 {
+    left: 120px;
+    gap: 12px;
+  }
+
+  .userlist-manage .div-wrapper-2 {
+    padding: 8px 20px;
+  }
+
+  .userlist-manage .text-wrapper-7,
+  .userlist-manage .text-wrapper-8,
+  .userlist-manage .text-wrapper-9 {
+    font-size: 18px;
+  }
+}

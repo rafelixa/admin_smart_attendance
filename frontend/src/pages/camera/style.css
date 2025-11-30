@@ -1,0 +1,536 @@
+.camera {
+  background-color: #f6f6f6;
+  width: 100%;
+  min-height: calc(100vh + 700px);
+  position: relative;
+  font-family: 'Poppins', sans-serif;
+}
+
+.camera .rectangle {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 96px;
+  background-color: #2c2d32;
+}
+
+.camera .back-button {
+  position: absolute;
+  top: 28px;
+  left: 60px;
+  font-size: 24px;
+  color: #ffffff;
+  text-decoration: none;
+  padding: 8px;
+  border-radius: 50%;
+  transition: background-color 0.2s ease, transform 0.2s ease;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 40px;
+  height: 40px;
+}
+
+.camera .back-button:hover {
+  background-color: rgba(255, 255, 255, 0.1);
+  transform: translateX(-2px);
+}
+
+.camera .frame-12 {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 24px;
+  position: absolute;
+  top: 22px;
+  left: 291px;
+}
+
+.camera .div-wrapper-2 {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  padding: 8px 40px;
+  position: relative;
+  flex: 0 0 auto;
+  text-decoration: none;
+  cursor: pointer;
+  transition: opacity 0.2s ease;
+}
+
+.camera .div-wrapper-2:hover {
+  opacity: 0.8;
+}
+
+.camera .div-wrapper-2:focus-visible {
+  outline: 2px solid #ffffff;
+  outline-offset: 2px;
+}
+
+.camera .div-wrapper-2.active .text-wrapper-8 {
+  color: #e0697e;
+}
+
+.camera .text-wrapper-7 {
+  position: relative;
+  width: 135px;
+  margin-top: -1.00px;
+  font-family: "Poppins-Regular", Helvetica;
+  font-weight: 400;
+  color: #ffffff;
+  font-size: 24px;
+  text-align: center;
+  letter-spacing: 0;
+  line-height: normal;
+}
+
+.camera .text-wrapper-8 {
+  font-family: "Poppins-Regular", Helvetica;
+  font-weight: 400;
+  color: #e0697e;
+  font-size: 24px;
+  text-align: center;
+  position: relative;
+  width: fit-content;
+  margin-top: -1.00px;
+  letter-spacing: 0;
+  line-height: normal;
+}
+
+.camera .text-wrapper-9 {
+  position: relative;
+  width: fit-content;
+  margin-top: -1.00px;
+  font-family: "Poppins-Regular", Helvetica;
+  font-weight: 400;
+  color: #ffffff;
+  font-size: 24px;
+  text-align: center;
+  letter-spacing: 0;
+  line-height: normal;
+}
+
+.camera .frame {
+  display: flex;
+  flex-direction: column;
+  width: min(1000px, 90%);
+  min-height: 600px;
+  align-items: flex-start;
+  gap: 32px;
+  padding: 32px 40px;
+  position: absolute;
+  top: 136px;
+  left: 50%;
+  transform: translateX(-50%);
+  background-color: #ffffff;
+  border-radius: 12px;
+  overflow: visible;
+  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.08);
+  border: 1px solid #e9ecef;
+}
+
+.camera .image {
+  width: 100%;
+  max-width: 800px;
+  height: 400px;
+  object-fit: cover;
+  border-radius: 8px;
+  border: 2px solid #e9ecef;
+  background-color: #f8f9fa;
+}
+
+.camera .image {
+  width: 100%;
+  max-width: 800px;
+  height: 400px;
+  object-fit: cover;
+  border-radius: 8px;
+  border: 2px solid #e9ecef;
+  background-color: #f8f9fa;
+  align-self: center;
+}
+
+.camera .div {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  position: relative;
+  align-self: stretch;
+  width: 100%;
+  flex: 0 0 auto;
+  padding-bottom: 16px;
+  border-bottom: 2px solid #f8f9fa;
+}
+
+.camera .text-wrapper {
+  display: flex;
+  align-items: center;
+  justify-content: flex-start;
+  font-family: 'Poppins', sans-serif;
+  font-weight: 600;
+  color: #2c3e50;
+  font-size: clamp(1.6rem, 3vw, 2.2rem);
+  position: relative;
+  width: fit-content;
+  letter-spacing: -0.5px;
+  line-height: 1.2;
+}
+
+/* Filter Container */
+.camera .filter-container {
+  position: relative;
+  display: inline-block;
+}
+
+.camera .vector-wrapper {
+  position: relative;
+  width: 40px;
+  height: 40px;
+  background-color: #f8f9fa;
+  border: 1px solid #dee2e6;
+  border-radius: 8px;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.camera .vector-wrapper:hover {
+  background-color: #e9ecef;
+  border-color: #adb5bd;
+  transform: translateY(-1px);
+}
+
+.camera .vector {
+  font-size: 18px;
+  color: #495057;
+  line-height: 1;
+}
+
+/* Filter Popup */
+.camera .filter-popup {
+  position: absolute;
+  top: calc(100% + 8px);
+  right: 0;
+  background-color: #2c2d32;
+  border-radius: 8px;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+  overflow: hidden;
+  min-width: 100px;
+  z-index: 1001;
+  display: none;
+}
+
+/* Filter Overlay for outside clicks */
+.camera .filter-overlay {
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  background-color: transparent;
+  display: none;
+  z-index: 1000;
+}
+
+.camera .filter-option {
+  padding: 10px 16px;
+  color: #ffffff;
+  font-family: 'Poppins', sans-serif;
+  font-size: 13px;
+  font-weight: 400;
+  cursor: pointer;
+  transition: background-color 0.2s ease;
+  text-align: left;
+  white-space: nowrap;
+}
+
+.camera .filter-option:hover {
+  background-color: #3a3b40;
+}
+
+.camera .filter-option.active {
+  background-color: #e0697e;
+  color: #ffffff;
+}
+
+.camera .table-container {
+  width: 100%;
+  max-height: 600px;
+  overflow-y: auto;
+  border-radius: 8px;
+  border: 1px solid #e9ecef;
+  box-shadow: 0 2px 12px rgba(0, 0, 0, 0.08);
+}
+
+.camera .table-container::-webkit-scrollbar {
+  width: 8px;
+}
+
+.camera .table-container::-webkit-scrollbar-track {
+  background: #f1f1f1;
+  border-radius: 8px;
+}
+
+.camera .table-container::-webkit-scrollbar-thumb {
+  background: #888;
+  border-radius: 8px;
+}
+
+.camera .table-container::-webkit-scrollbar-thumb:hover {
+  background: #555;
+}
+
+.camera .frame-2 {
+  display: flex;
+  flex-direction: column;
+  width: 100%;
+  background-color: #ffffff;
+}
+
+.camera .frame-3 {
+  position: sticky;
+  top: 0;
+  z-index: 10;
+  display: grid;
+  grid-template-columns: 150px 2fr 120px 100px 120px;
+  width: 100%;
+  background-color: #f8f9fa;
+  border-bottom: 2px solid #dee2e6;
+}
+
+.camera .div-wrapper {
+  display: flex;
+  width: 100%;
+  height: 70px;
+  align-items: center;
+  justify-content: center;
+  padding: 12px 8px;
+  background-color: #f8f9fa;
+  border-right: 1px solid #dee2e6;
+}
+
+.camera .div-wrapper:nth-child(1) {
+  justify-content: flex-start;
+  padding-left: 16px;
+}
+
+.camera .div-wrapper:nth-child(2) {
+  justify-content: flex-start;
+  padding-left: 16px;
+}
+
+.camera .div-wrapper:last-child {
+  border-right: none;
+}
+
+.camera .text-wrapper-2 {
+  position: relative;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 100%;
+  height: 100%;
+  margin: 0;
+  padding: 0;
+  font-family: 'Poppins', sans-serif;
+  font-weight: 600;
+  color: #495057;
+  font-size: 15px;
+  letter-spacing: 0;
+  line-height: normal;
+  text-align: center;
+}
+
+/* Table Row Styling */
+.camera .attendance-row {
+  display: grid;
+  grid-template-columns: 150px 2fr 120px 100px 120px;
+  width: 100%;
+  border-bottom: 1px solid #f0f0f0;
+  transition: background-color 0.2s ease;
+}
+
+.camera .attendance-row:hover {
+  background-color: #f8f9fa;
+}
+
+.camera .attendance-cell {
+  display: flex;
+  width: 100%;
+  height: 60px;
+  align-items: center;
+  justify-content: center;
+  padding: 12px 8px;
+  border-right: 1px solid #e9ecef;
+  background-color: #ffffff;
+  font-family: 'Poppins', sans-serif;
+  font-weight: 400;
+  color: #495057;
+  font-size: 14px;
+}
+
+.camera .attendance-cell:first-child {
+  justify-content: flex-start;
+  padding-left: 16px;
+  font-weight: 500;
+}
+
+.camera .attendance-cell:nth-child(2) {
+  justify-content: flex-start;
+  padding-left: 16px;
+}
+
+.camera .attendance-cell:last-child {
+  border-right: none;
+}
+
+/* Status Badge Styling */
+.camera .status-badge {
+  padding: 6px 12px;
+  border-radius: 6px;
+  font-weight: 600;
+  font-size: 13px;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+.camera .status-present {
+  background-color: #d4edda;
+  color: #155724;
+}
+
+.camera .status-late {
+  background-color: #fff3cd;
+  color: #856404;
+}
+
+.camera .status-absent {
+  background-color: #f8d7da;
+  color: #721c24;
+}
+
+.camera .status-sick {
+  background-color: #e7d4f5;
+  color: #5a1f7d;
+}
+
+.camera .status-excused {
+  background-color: #e2e3e5;
+  color: #383d41;
+}
+
+/* Loading Indicator */
+.camera .loading-indicator {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 40px;
+  color: #6c757d;
+  font-family: 'Poppins', sans-serif;
+  font-size: 14px;
+  gap: 12px;
+}
+
+
+
+/* Media Queries untuk Responsivitas */
+@media screen and (max-width: 1200px) {
+  .camera .frame {
+    width: 95%;
+    padding: 20px 30px;
+  }
+  
+  .camera .back-button {
+    left: 40px;
+  }
+
+  .camera .frame-3,
+  .camera .attendance-row {
+    grid-template-columns: 130px 1.5fr 100px 90px 100px;
+  }
+}
+
+@media screen and (max-width: 768px) {
+  .camera .frame {
+    width: 95%;
+    padding: 16px 20px;
+    top: 120px;
+  }
+  
+  .camera .back-button {
+    left: 25px;
+    font-size: 20px;
+    width: 35px;
+    height: 35px;
+    top: 22px;
+  }
+  
+  .camera .rectangle {
+    height: 80px;
+  }
+  
+  .camera .frame-12 {
+    display: none;
+  }
+  
+  .camera .text-wrapper {
+    font-size: clamp(1.2rem, 4vw, 1.5rem);
+  }
+
+  .camera .table-container {
+    max-height: 500px;
+  }
+  
+  .camera .frame-3,
+  .camera .attendance-row {
+    grid-template-columns: 120px 1fr 90px 80px 90px;
+  }
+
+  .camera .div-wrapper,
+  .camera .attendance-cell {
+    padding: 8px 6px;
+    font-size: 13px;
+  }
+
+  .camera .status-badge {
+    padding: 4px 8px;
+    font-size: 11px;
+  }
+}
+
+@media screen and (max-width: 480px) {
+  .camera .frame {
+    padding: 12px 16px;
+  }
+  
+  .camera .back-button {
+    left: 15px;
+    font-size: 18px;
+    width: 32px;
+    height: 32px;
+  }
+  
+  .camera .frame-3,
+  .camera .attendance-row {
+    grid-template-columns: 100px 1fr 80px 70px 80px;
+  }
+
+  .camera .div-wrapper,
+  .camera .attendance-cell {
+    padding: 6px 4px;
+    font-size: 12px;
+  }
+
+  .camera .text-wrapper-2 {
+    font-size: 12px;
+  }
+
+  .camera .status-badge {
+    padding: 3px 6px;
+    font-size: 10px;
+  }
+}
