@@ -1,20 +1,65 @@
 {
-  "version": 2,
+  "buildCommand": "cd frontend && npm install && npm run build",
+  "outputDirectory": "frontend/dist",
+  "framework": null,
   "builds": [
-    { "src": "backend/server.js", "use": "@vercel/node" },
-    { "src": "frontend/src/pages/**", "use": "@vercel/static" },
-    { "src": "frontend/package.json", "use": "@vercel/static-build" }
+    { 
+      "src": "backend/server.js", 
+      "use": "@vercel/node"
+    }
   ],
   "routes": [
-    { "src": "/api/(.*)", "dest": "/backend/server.js" },
-    { "src": "^/login$", "dest": "/frontend/src/pages/login/index.html" },
-    { "src": "^/camera$", "dest": "/frontend/src/pages/camera/index.html" },
-    { "src": "^/request-list$", "dest": "/frontend/src/pages/request_list/index.html" },
-    { "src": "^/request-list/(.*)", "dest": "/frontend/src/pages/request_list/$1" },
-    { "src": "^/request-list-manage/(.*)", "dest": "/frontend/src/pages/request_list_manage/$1" },
-    { "src": "^/userlist$", "dest": "/frontend/src/pages/userlist/index.html" },
-    { "src": "^/userlist-manage$", "dest": "/frontend/src/pages/userlist_manage/index.html" },
-    { "src": "^/userlist-manage/(.*)", "dest": "/frontend/src/pages/userlist_manage/$1" },
-    { "src": "^/(.*)$", "dest": "/frontend/$1" }
+    { 
+      "src": "/api/(.*)", 
+      "dest": "/backend/server.js" 
+    },
+    { 
+      "src": "/assets/(.*)",
+      "dest": "/frontend/dist/assets/$1"
+    },
+    { 
+      "src": "^/$",
+      "dest": "/frontend/dist/index.html"
+    },
+    { 
+      "src": "^/login$",
+      "dest": "/frontend/dist/src/pages/login/index.html"
+    },
+    { 
+      "src": "^/camera$",
+      "dest": "/frontend/dist/src/pages/camera/index.html"
+    },
+    { 
+      "src": "^/request-list$",
+      "dest": "/frontend/dist/src/pages/request_list/index.html"
+    },
+    { 
+      "src": "^/userlist$",
+      "dest": "/frontend/dist/src/pages/userlist/index.html"
+    },
+    { 
+      "src": "^/userlist-manage$",
+      "dest": "/frontend/dist/src/pages/userlist_manage/index.html"
+    },
+    { 
+      "src": "^/request-list-manage/approved$",
+      "dest": "/frontend/dist/src/pages/request_list_manage/approved/index.html"
+    },
+    { 
+      "src": "^/request-list-manage/pending$",
+      "dest": "/frontend/dist/src/pages/request_list_manage/pending/index.html"
+    },
+    { 
+      "src": "^/request-list-manage/rejected$",
+      "dest": "/frontend/dist/src/pages/request_list_manage/rejected/index.html"
+    },
+    { 
+      "src": "/(.*\\.(js|css|jpg|jpeg|png|gif|svg|woff|woff2|ttf|eot|ico|json|webp))",
+      "dest": "/frontend/dist/$1"
+    },
+    { 
+      "src": "/(.*)",
+      "dest": "/frontend/dist/index.html"
+    }
   ]
 }
