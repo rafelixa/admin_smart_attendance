@@ -130,13 +130,21 @@ document.addEventListener('DOMContentLoaded', function () {
   }
 });
 // ========================================
-// CONFIGURATION (development vs production)
-// use localhost during development, otherwise use relative '/api' so production routing works
+// CONFIGURATION - use global config
 // ========================================
-const API_URL = (typeof window !== 'undefined' && (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1')) ? 'http://localhost:3000/api' : '/api';
+const API_URL = window.APP_CONFIG ? window.APP_CONFIG.API_URL : '/api';
 let allLogs = [];
 let currentFilter = 'all';
+let selectedDateFilter = null;
 let refreshInterval;
+let currentPage = 1;
+let totalPages = 1;
+let totalRecords = 0;
+const ITEMS_PER_PAGE = 50;
+
+// Request control & simple cache
+let abortController = null;
+const logsCache = new Map(); // key: `${currentFilter}:${selectedDateFilter || ''}:${currentPage}`
 
 // AUTHENTICATION CHECK: now uses JWT session to backend
 
@@ -144,12 +152,42 @@ let refreshInterval;
 // ========================================
 // FETCH ATTENDANCE LOGS
 // ========================================
-async function fetchAttendanceLogs(status = 'all') {
+async function fetchAttendanceLogs(status = 'all', page = 1) {
   try {
-    const url = `${API_URL}/attendance/logs${status !== 'all' ? `?status=${status}` : ''}`;
+    // Show skeleton loading immediately
+    showSkeletonLoading();
+
+    // Cancel any in-flight request to avoid overlap
+    if (abortController) abortController.abort();
+    abortController = new AbortController();
+    
+    const params = new URLSearchParams({
+      page: page,
+      limit: ITEMS_PER_PAGE
+    });
+    
+    if (status !== 'all') {
+      params.append('status', status);
+    }
+    
+    const url = `${API_URL}/attendance/logs?${params.toString()}`;
+
+    // Serve cached results instantly if available
+    const cacheKey = `${status}:${selectedDateFilter || ''}:${page}`;
+    if (logsCache.has(cacheKey)) {
+      const cached = logsCache.get(cacheKey);
+      allLogs = cached.data;
+      currentPage = cached.page;
+      totalPages = cached.totalPages;
+      totalRecords = cached.total;
+      displayLogs(allLogs);
+      updatePagination();
+      // proceed to refresh in background
+    }
     const token = localStorage.getItem('token');
     const response = await fetch(url, {
-      headers: { 'Authorization': token ? `Bearer ${token}` : '' }
+      headers: { 'Authorization': token ? `Bearer ${token}` : '' },
+      signal: abortController.signal
     });
     if (!response.ok) {
       throw new Error(`HTTP error! status: ${response.status}`);
@@ -157,14 +195,48 @@ async function fetchAttendanceLogs(status = 'all') {
     const result = await response.json();
     if (result.success) {
       allLogs = result.data;
+      currentPage = result.page;
+      totalPages = result.totalPages;
+      totalRecords = result.total;
+      // Cache fresh results
+      logsCache.set(cacheKey, {
+        data: allLogs,
+        page: currentPage,
+        totalPages,
+        total: totalRecords
+      });
+
       displayLogs(allLogs);
+      updatePagination();
     } else {
       throw new Error(result.message || 'Failed to fetch logs');
     }
   } catch (error) {
+    if (error.name === 'AbortError') return; // intentional cancel
     console.error('Error fetching attendance logs:', error);
     showError('Failed to load attendance logs. Please try again.');
   }
+}
+
+// ========================================
+// SKELETON LOADING FOR CAMERA PAGE
+// ========================================
+function showSkeletonLoading() {
+  const container = document.querySelector('.frame-2');
+  if (!container) return;
+
+  // Remove existing content
+  const existingRows = container.querySelectorAll('.attendance-row, .loading-indicator');
+  existingRows.forEach(row => row.remove());
+
+  const loading = document.createElement('div');
+  loading.id = 'loading';
+  loading.className = 'loading-indicator';
+  loading.style.textAlign = 'center';
+  loading.style.padding = '40px';
+  loading.style.color = '#666';
+  loading.innerHTML = '<p>Loading attendance logs...</p>';
+  container.appendChild(loading);
 }
 
 // ========================================
@@ -176,9 +248,13 @@ function displayLogs(logs) {
   
   if (loading) loading.remove();
   
-  // Remove all existing rows except header
+  // Remove all existing rows and messages (except header)
   const existingRows = container.querySelectorAll('.attendance-row');
   existingRows.forEach(row => row.remove());
+  
+  // Remove all loading-indicator messages (error/empty messages)
+  const existingMessages = container.querySelectorAll('.loading-indicator');
+  existingMessages.forEach(msg => msg.remove());
   
   if (logs.length === 0) {
     const emptyRow = document.createElement('div');
@@ -187,6 +263,9 @@ function displayLogs(logs) {
     container.appendChild(emptyRow);
     return;
   }
+  
+  // Use DocumentFragment for batch rendering
+  const fragment = document.createDocumentFragment();
   
   logs.forEach(log => {
     const row = document.createElement('div');
@@ -201,11 +280,16 @@ function displayLogs(logs) {
       <div class="attendance-cell">${log.date}</div>
       <div class="attendance-cell">${log.time}</div>
       <div class="attendance-cell">
-        <span class="status-badge ${statusClass}">${log.status}</span>
+        <span class="status-badge ${statusClass}">${log.status.toUpperCase()}</span>
       </div>
     `;
     
-    container.appendChild(row);
+    fragment.appendChild(row);
+  });
+  
+  // Batch append for better performance
+  requestAnimationFrame(() => {
+    container.appendChild(fragment);
   });
   
   console.log(`Displayed ${logs.length} attendance logs`);
@@ -218,10 +302,16 @@ function displayLogs(logs) {
 
 async function filterBy(status, event) {
   console.log('Filter by:', status);
+  
+  // Update active filter state
   currentFilter = status;
+  
+  // Update UI: remove active class from all options
   document.querySelectorAll('.filter-option').forEach(option => {
     option.classList.remove('active');
   });
+  
+  // Add active class to selected option
   if (event && event.target) {
     event.target.classList.add('active');
   } else {
@@ -229,21 +319,53 @@ async function filterBy(status, event) {
     const activeOption = document.querySelector(`.filter-option[data-filter="${status}"]`);
     if (activeOption) activeOption.classList.add('active');
   }
+  
+  // Reset to page 1 when changing filter
+  currentPage = 1;
+  
+  // Execute filter based on type
   if (status === 'bydate' && arguments.length > 2) {
-    // Filter by date
-    await fetchAttendanceLogsByDate(arguments[2]);
+    // Filter by date: save selected date
+    selectedDateFilter = arguments[2];
+    await fetchAttendanceLogsByDate(arguments[2], 1);
   } else {
-    await fetchAttendanceLogs(status);
+    // Other filters (all, present, late): reset date filter
+    selectedDateFilter = null;
+    await fetchAttendanceLogs(status, 1);
   }
+  
+  // Restart auto-refresh with new filter
+  startAutoRefresh();
 }
 
 // Fetch logs by date
-async function fetchAttendanceLogsByDate(dateStr) {
+async function fetchAttendanceLogsByDate(dateStr, page = 1) {
   try {
-    const url = `${API_URL}/attendance/logs?date=${dateStr}`;
+    // Cancel any in-flight request
+    if (abortController) abortController.abort();
+    abortController = new AbortController();
+    const params = new URLSearchParams({
+      date: dateStr,
+      page: page,
+      limit: ITEMS_PER_PAGE
+    });
+    
+    const url = `${API_URL}/attendance/logs?${params.toString()}`;
     const token = localStorage.getItem('token');
+    const cacheKey = `bydate:${dateStr}:${page}`;
+    if (logsCache.has(cacheKey)) {
+      const cached = logsCache.get(cacheKey);
+      allLogs = cached.data;
+      currentPage = cached.page;
+      totalPages = cached.totalPages;
+      totalRecords = cached.total;
+      displayLogs(allLogs);
+      updatePagination();
+    }
+
     const response = await fetch(url, {
-      headers: { 'Authorization': token ? `Bearer ${token}` : '' }
+      headers: { 'Authorization': token ? `Bearer ${token}` : '' },
+      signal: abortController.signal
     });
     if (!response.ok) {
       throw new Error(`HTTP error! status: ${response.status}`);
@@ -251,11 +373,22 @@ async function fetchAttendanceLogsByDate(dateStr) {
     const result = await response.json();
     if (result.success) {
       allLogs = result.data;
+      currentPage = result.page;
+      totalPages = result.totalPages;
+      totalRecords = result.total;
+      logsCache.set(cacheKey, {
+        data: allLogs,
+        page: currentPage,
+        totalPages,
+        total: totalRecords
+      });
       displayLogs(allLogs);
+      updatePagination();
     } else {
       throw new Error(result.message || 'Failed to fetch logs');
     }
   } catch (error) {
+    if (error.name === 'AbortError') return;
     console.error('Error fetching attendance logs by date:', error);
     showError('Failed to load attendance logs by date.');
   }
@@ -270,6 +403,10 @@ function showError(message) {
   
   if (loading) loading.remove();
   
+  // Remove all existing error messages
+  const existingErrors = container.querySelectorAll('.loading-indicator');
+  existingErrors.forEach(err => err.remove());
+  
   const errorDiv = document.createElement('div');
   errorDiv.className = 'loading-indicator';
   errorDiv.style.color = '#dc3545';
@@ -281,17 +418,171 @@ function showError(message) {
 // ========================================
 // AUTO REFRESH
 // ========================================
+function refreshCurrentFilter() {
+  console.log('Auto-refreshing attendance logs with filter:', currentFilter, selectedDateFilter ? `(date: ${selectedDateFilter})` : '', `page: ${currentPage}`);
+  
+  // If filter is by date and date is selected, use date filter
+  if (currentFilter === 'bydate' && selectedDateFilter) {
+    fetchAttendanceLogsByDate(selectedDateFilter, currentPage);
+  } else if (currentFilter === 'bydate' && !selectedDateFilter) {
+    // If bydate selected but no date, fallback to 'all'
+    console.warn('Filter is bydate but no date selected, falling back to all');
+    currentFilter = 'all';
+    fetchAttendanceLogs('all', currentPage);
+  } else {
+    // For all, present, late filters
+    fetchAttendanceLogs(currentFilter, currentPage);
+  }
+}
+
+// ========================================
+// PAGINATION FUNCTIONS
+// ========================================
+function updatePagination() {
+  let paginationContainer = document.querySelector('.pagination-container');
+  
+  // Create pagination container if it doesn't exist
+  if (!paginationContainer) {
+    paginationContainer = document.createElement('div');
+    paginationContainer.className = 'pagination-container';
+    const tableWrapper = document.querySelector('.table-container');
+    if (tableWrapper && tableWrapper.parentNode) {
+      tableWrapper.parentNode.insertBefore(paginationContainer, tableWrapper.nextSibling);
+    }
+  }
+  
+  // Clear existing pagination
+  paginationContainer.innerHTML = '';
+  
+  // Don't show pagination if only 1 page or no data
+  if (totalPages <= 1) {
+    paginationContainer.style.display = 'none';
+    return;
+  }
+  
+  paginationContainer.style.display = 'flex';
+  
+  // Pagination info
+  const startRecord = (currentPage - 1) * ITEMS_PER_PAGE + 1;
+  const endRecord = Math.min(currentPage * ITEMS_PER_PAGE, totalRecords);
+  
+  const paginationInfo = document.createElement('div');
+  paginationInfo.className = 'pagination-info';
+  paginationInfo.textContent = `Showing ${startRecord}-${endRecord} of ${totalRecords} records`;
+  paginationContainer.appendChild(paginationInfo);
+  
+  // Pagination buttons container
+  const buttonsContainer = document.createElement('div');
+  buttonsContainer.className = 'pagination-buttons';
+  
+  // Previous button
+  const prevBtn = document.createElement('button');
+  prevBtn.className = 'pagination-btn';
+  prevBtn.textContent = '← Previous';
+  prevBtn.disabled = currentPage === 1;
+  prevBtn.onclick = () => goToPage(currentPage - 1);
+  buttonsContainer.appendChild(prevBtn);
+  
+  // Page numbers
+  const maxVisiblePages = 5;
+  let startPage = Math.max(1, currentPage - Math.floor(maxVisiblePages / 2));
+  let endPage = Math.min(totalPages, startPage + maxVisiblePages - 1);
+  
+  if (endPage - startPage < maxVisiblePages - 1) {
+    startPage = Math.max(1, endPage - maxVisiblePages + 1);
+  }
+  
+  // First page + ellipsis if needed
+  if (startPage > 1) {
+    const firstBtn = document.createElement('button');
+    firstBtn.className = 'pagination-btn';
+    firstBtn.textContent = '1';
+    firstBtn.onclick = () => goToPage(1);
+    buttonsContainer.appendChild(firstBtn);
+    
+    if (startPage > 2) {
+      const ellipsis = document.createElement('span');
+      ellipsis.className = 'pagination-ellipsis';
+      ellipsis.textContent = '...';
+      buttonsContainer.appendChild(ellipsis);
+    }
+  }
+  
+  // Page number buttons
+  for (let i = startPage; i <= endPage; i++) {
+    const pageBtn = document.createElement('button');
+    pageBtn.className = 'pagination-btn';
+    if (i === currentPage) {
+      pageBtn.classList.add('active');
+    }
+    pageBtn.textContent = i;
+    pageBtn.onclick = () => goToPage(i);
+    buttonsContainer.appendChild(pageBtn);
+  }
+  
+  // Ellipsis + last page if needed
+  if (endPage < totalPages) {
+    if (endPage < totalPages - 1) {
+      const ellipsis = document.createElement('span');
+      ellipsis.className = 'pagination-ellipsis';
+      ellipsis.textContent = '...';
+      buttonsContainer.appendChild(ellipsis);
+    }
+    
+    const lastBtn = document.createElement('button');
+    lastBtn.className = 'pagination-btn';
+    lastBtn.textContent = totalPages;
+    lastBtn.onclick = () => goToPage(totalPages);
+    buttonsContainer.appendChild(lastBtn);
+  }
+  
+  // Next button
+  const nextBtn = document.createElement('button');
+  nextBtn.className = 'pagination-btn';
+  nextBtn.textContent = 'Next →';
+  nextBtn.disabled = currentPage === totalPages;
+  nextBtn.onclick = () => goToPage(currentPage + 1);
+  buttonsContainer.appendChild(nextBtn);
+  
+  paginationContainer.appendChild(buttonsContainer);
+}
+
+async function goToPage(page) {
+  if (page < 1 || page > totalPages || page === currentPage) return;
+  
+  currentPage = page;
+  
+  // Fetch data for the new page
+  if (currentFilter === 'bydate' && selectedDateFilter) {
+    await fetchAttendanceLogsByDate(selectedDateFilter, page);
+  } else {
+    await fetchAttendanceLogs(currentFilter, page);
+  }
+  
+  // Scroll to top of table
+  const tableWrapper = document.querySelector('.table-container');
+  if (tableWrapper) {
+    tableWrapper.scrollIntoView({ behavior: 'smooth', block: 'start' });
+  }
+}
+
 function startAutoRefresh() {
-  // Refresh every 30 seconds
+  // Stop any existing interval first
+  stopAutoRefresh();
+  
+  // Refresh every 10 seconds
   refreshInterval = setInterval(() => {
-    console.log('Auto-refreshing attendance logs...');
-    fetchAttendanceLogs(currentFilter);
-  }, 30000);
+    refreshCurrentFilter();
+  }, 10000);
+  
+  console.log('Auto-refresh started (every 10 seconds)');
 }
 
 function stopAutoRefresh() {
   if (refreshInterval) {
     clearInterval(refreshInterval);
+    refreshInterval = null;
+    console.log('Auto-refresh stopped');
   }
 }
 
@@ -299,14 +590,16 @@ function stopAutoRefresh() {
 // INITIALIZATION
 // ========================================
 document.addEventListener('DOMContentLoaded', async function () {
+  // Show loading immediately to avoid empty table flash
+  showSkeletonLoading();
   // Proteksi: cek session via backend JWT
   if (!(await window.checkAuth?.())) {
     document.body.innerHTML = '';
     window.location.href = '/login';
     return;
   }
-  // Initial fetch
-  fetchAttendanceLogs('all');
+  // Initial fetch (page 1)
+  fetchAttendanceLogs('all', 1);
   // Start auto-refresh
   startAutoRefresh();
   console.log('Camera page initialized successfully');

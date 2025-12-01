@@ -4,11 +4,12 @@ const supabase = require('../config/db');
 
 const getAllStudents = async (req, res) => {
   try {
-    const { search } = req.query;
+    const { search, page = 1, limit = 50, filter = 'all' } = req.query;
 
+    // Get ALL students first (no pagination yet) - need all to calculate tolerance
     let query = supabase
       .from('users')
-      .select('user_id, full_name, nim, email, role, created_at')
+      .select('user_id, full_name, nim')
       .eq('role', 'student')
       .order('full_name', { ascending: true });
 
@@ -26,11 +27,99 @@ const getAllStudents = async (req, res) => {
       });
     }
 
+    // Batch fetch tolerance info for all students to avoid N+1 problem
+    const userIds = students.map(s => s.user_id);
+    
+    // Get all enrollments for these students in one query
+    const { data: enrollments } = await supabase
+      .from('enrollments')
+      .select('user_id, enrollment_id')
+      .in('user_id', userIds);
+    
+    // Get all attendance records for these enrollments in one query
+    const enrollmentIds = (enrollments || []).map(e => e.enrollment_id);
+    const { data: attendances } = await supabase
+      .from('attendances')
+      .select('enrollment_id, status')
+      .in('enrollment_id', enrollmentIds);
+    
+    // Group attendance by enrollment (per course)
+    const attendanceByEnrollment = {};
+    (attendances || []).forEach(att => {
+      if (!attendanceByEnrollment[att.enrollment_id]) {
+        attendanceByEnrollment[att.enrollment_id] = { late: 0, absent: 0 };
+      }
+      const status = att.status.toLowerCase();
+      if (status === 'late') attendanceByEnrollment[att.enrollment_id].late++;
+      if (status === 'absent') attendanceByEnrollment[att.enrollment_id].absent++;
+    });
+    
+    // Calculate tolerance status PER USER based on ANY course exceeding/reaching limit
+    const TOLERANCE_LIMIT = 3;
+    const toleranceByUser = {};
+    
+    students.forEach(student => {
+      toleranceByUser[student.user_id] = { 
+        late: 0, 
+        absent: 0, 
+        exceeded: false, 
+        reached: false 
+      };
+    });
+    
+    (enrollments || []).forEach(enrollment => {
+      const att = attendanceByEnrollment[enrollment.enrollment_id] || { late: 0, absent: 0 };
+      const total = att.late + att.absent;
+      
+      // Check if THIS course has exceeded or reached tolerance
+      if (total > TOLERANCE_LIMIT || att.late > TOLERANCE_LIMIT || att.absent > TOLERANCE_LIMIT) {
+        toleranceByUser[enrollment.user_id].exceeded = true;
+      } else if (total === TOLERANCE_LIMIT || att.late === TOLERANCE_LIMIT || att.absent === TOLERANCE_LIMIT) {
+        toleranceByUser[enrollment.user_id].reached = true;
+      }
+      
+      // Sum total attendance issues across all courses for display
+      toleranceByUser[enrollment.user_id].late += att.late;
+      toleranceByUser[enrollment.user_id].absent += att.absent;
+    });
+    
+    // Add tolerance info to students
+    let studentsWithTolerance = students.map(student => ({
+      ...student,
+      tolerance: toleranceByUser[student.user_id] || { late: 0, absent: 0, exceeded: false, reached: false }
+    }));
+
+    // Apply filter based on tolerance status
+    if (filter === 'past') {
+      studentsWithTolerance = studentsWithTolerance.filter(s => s.tolerance.exceeded === true);
+    } else if (filter === 'reach') {
+      studentsWithTolerance = studentsWithTolerance.filter(s => s.tolerance.reached === true);
+    }
+    // 'all' shows everyone, no filtering needed
+
+    // Recalculate pagination based on filtered results
+    const filteredCount = studentsWithTolerance.length;
+    const totalPages = Math.ceil(filteredCount / parseInt(limit));
+    const currentPage = parseInt(page);
+    
+    // Calculate offset for filtered results
+    const offset = (parseInt(page) - 1) * parseInt(limit);
+
+    // Apply pagination to filtered results
+    const paginatedStudents = studentsWithTolerance.slice(offset, offset + parseInt(limit));
+
     return res.status(200).json({
       success: true,
+      count: paginatedStudents.length,
+      total: filteredCount,
+      page: currentPage,
+      limit: parseInt(limit),
+      totalPages: totalPages,
+      hasNextPage: currentPage < totalPages,
+      hasPrevPage: currentPage > 1,
       data: {
-        students: students || [],
-        total: students ? students.length : 0
+        students: paginatedStudents,
+        total: filteredCount
       }
     });
 
@@ -50,7 +139,7 @@ const getStudentDetail = async (req, res) => {
 
     const { data: student, error: studentError } = await supabase
       .from('users')
-      .select('user_id, full_name, nim, email, role, created_at')
+      .select('user_id, full_name, nim')
       .eq('user_id', userId)
       .eq('role', 'student')
       .single();
@@ -83,35 +172,46 @@ const getStudentDetail = async (req, res) => {
       });
     }
 
-    const coursesWithAttendance = await Promise.all(
-      (enrollments || []).map(async (enrollment) => {
-        const { data: attendances, error: attError } = await supabase
-          .from('attendances')
-          .select('status')
-          .eq('enrollment_id', enrollment.enrollment_id);
+    // Fix N+1 query problem: fetch all attendances in one query
+    const enrollmentIds = enrollments.map(e => e.enrollment_id);
+    const { data: allAttendances, error: attError } = await supabase
+      .from('attendances')
+      .select('enrollment_id, status')
+      .in('enrollment_id', enrollmentIds);
 
-        if (attError) {
-          console.error('Error fetching attendance:', attError);
+    if (attError) {
+      console.error('Error fetching attendances:', attError);
+    }
+
+    // Group attendances by enrollment_id
+    const attendancesByEnrollment = {};
+    (allAttendances || []).forEach(att => {
+      if (!attendancesByEnrollment[att.enrollment_id]) {
+        attendancesByEnrollment[att.enrollment_id] = [];
+      }
+      attendancesByEnrollment[att.enrollment_id].push(att);
+    });
+
+    // Build courses with attendance data
+    const coursesWithAttendance = enrollments.map(enrollment => {
+      const attendances = attendancesByEnrollment[enrollment.enrollment_id] || [];
+      const attendanceCount = { present: 0, late: 0, absent: 0, sick: 0, excused: 0, total: 0 };
+
+      attendances.forEach(att => {
+        const status = att.status.toLowerCase();
+        if (attendanceCount.hasOwnProperty(status)) {
+          attendanceCount[status]++;
         }
+        attendanceCount.total++;
+      });
 
-        const attendanceCount = { present: 0, late: 0, absent: 0, sick: 0, excused: 0, total: 0 };
-
-        (attendances || []).forEach(att => {
-          const status = att.status.toLowerCase();
-          if (attendanceCount.hasOwnProperty(status)) {
-            attendanceCount[status]++;
-          }
-          attendanceCount.total++;
-        });
-
-        return {
-          course_id: enrollment.courses.course_id,
-          course_code: enrollment.courses.course_code,
-          course_name: enrollment.courses.course_name,
-          attendance: attendanceCount
-        };
-      })
-    );
+      return {
+        course_id: enrollment.courses.course_id,
+        course_code: enrollment.courses.course_code,
+        course_name: enrollment.courses.course_name,
+        attendance: attendanceCount
+      };
+    });
 
     const TOLERANCE_LIMIT = 3;
     const exceeded = [];

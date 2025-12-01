@@ -1,6 +1,8 @@
 
 // auth.js: Helper for JWT session check and logout
-const API_URL = (typeof window !== 'undefined' && (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1')) ? 'http://localhost:3000/api' : '/api';
+// Requires: config.js to be loaded first
+
+const API_URL = window.APP_CONFIG ? window.APP_CONFIG.API_URL : '/api';
 
 // Check if user is authenticated (token exists and valid)
 async function checkAuth() {

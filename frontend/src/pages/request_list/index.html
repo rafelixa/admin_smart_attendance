@@ -4,18 +4,23 @@
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <meta charset="utf-8" />
     <title>Request List - Smart Attendance Admin</title>
-    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" />
+    <link rel="preconnect" href="https://cdnjs.cloudflare.com" crossorigin>
+    <link rel="dns-prefetch" href="https://cdnjs.cloudflare.com">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" media="print" onload="this.media='all'" />
   <link rel="stylesheet" href="/global.css" />
   <link rel="stylesheet" href="/src/pages/request_list/style.css" />
   </head>
   <body>
+    <script src="/config.js" defer></script>
+    <script src="/utils.js" defer></script>
+    <script src="/debounce.js" defer></script>
     <div class="request-list">
       <header class="rectangle">
-        <a href="/dashboard" class="back-button" aria-label="Back to Dashboard">
+        <a href="/" class="back-button" aria-label="Back to Dashboard">
           <i class="fas fa-arrow-left"></i>
         </a>
         <nav class="frame-12" aria-label="Main navigation">
-            <a href="/dashboard" class="div-wrapper-2">
+            <a href="/" class="div-wrapper-2">
             <span class="text-wrapper-7">Dashboard</span>
           </a>
           <a href="/request-list" class="div-wrapper-2 active" aria-current="page">
@@ -48,19 +53,21 @@
 
         <!-- Filter Overlay for outside clicks -->
         <div class="filter-overlay" id="filterOverlay"></div>
-        <section class="frame-2">
-          <div class="frame-3">
-            <div class="div-wrapper">
-              <span class="text-wrapper-2">From</span>
+        <div class="table-wrapper">
+          <section class="frame-2">
+            <div class="frame-3">
+              <div class="div-wrapper">
+                <span class="text-wrapper-2">From</span>
+              </div>
+              <div class="div-wrapper">
+                <span class="text-wrapper-2">To</span>
+              </div>
+              <div class="div-wrapper">
+                <span class="text-wrapper-2">Status</span>
+              </div>
             </div>
-            <div class="div-wrapper">
-              <span class="text-wrapper-2">To</span>
-            </div>
-            <div class="div-wrapper">
-              <span class="text-wrapper-2">Status</span>
-            </div>
-          </div>
-        </section>
+          </section>
+        </div>
       </main>
 
       <!-- Calendar Modal -->

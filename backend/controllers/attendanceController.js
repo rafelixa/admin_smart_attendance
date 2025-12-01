@@ -5,29 +5,50 @@ const supabase = require('../config/db');
 // ========================================
 const getAttendanceLogs = async (req, res) => {
   try {
-    const { status, date } = req.query; // Optional filter parameter
+    const { status, date, page = 1, limit = 50 } = req.query; // Add pagination parameters
 
+    // Calculate offset for pagination
+    const offset = (parseInt(page) - 1) * parseInt(limit);
+
+    // First, get total count for pagination info
+    let countQuery = supabase
+      .from('attendances')
+      .select('attendance_id', { count: 'exact', head: true })
+      .in('status', ['present', 'late']);
+
+    // Apply same filters to count query
+    if (date) {
+      countQuery = countQuery.eq('attendance_date', date);
+    }
+    if (status && status !== 'all') {
+      countQuery = countQuery.eq('status', status);
+    }
+
+    const { count, error: countError } = await countQuery;
+
+    if (countError) {
+      console.error('Error counting attendance logs:', countError);
+      return res.status(500).json({
+        success: false,
+        message: 'Failed to count attendance logs',
+        error: countError.message
+      });
+    }
+
+    // Now get paginated data - optimized to select only required fields
     let query = supabase
       .from('attendances')
       .select(`
         attendance_id,
-        enrollment_id,
-        schedule_id,
         status,
         attendance_date,
         recorded_at,
         enrollments!inner (
-          enrollment_id,
-          user_id,
-          course_id,
           users!inner (
-            user_id,
             nim,
-            full_name,
-            email
+            full_name
           ),
           courses!inner (
-            course_id,
             course_code,
             course_name
           )
@@ -36,7 +57,7 @@ const getAttendanceLogs = async (req, res) => {
       .in('status', ['present', 'late']) // Only show present and late status
       .order('attendance_date', { ascending: false })
       .order('recorded_at', { ascending: false })
-      .limit(100);
+      .range(offset, offset + parseInt(limit) - 1);
 
     // Filter by date if provided
     if (date) {
@@ -81,9 +102,19 @@ const getAttendanceLogs = async (req, res) => {
       };
     }).filter(Boolean);
 
+    // Calculate pagination metadata
+    const totalPages = Math.ceil(count / parseInt(limit));
+    const currentPage = parseInt(page);
+
     res.json({
       success: true,
       count: formattedLogs.length,
+      total: count,
+      page: currentPage,
+      limit: parseInt(limit),
+      totalPages: totalPages,
+      hasNextPage: currentPage < totalPages,
+      hasPrevPage: currentPage > 1,
       data: formattedLogs
     });
 
@@ -109,23 +140,15 @@ const getTodayAttendanceLogs = async (req, res) => {
       .from('attendances')
       .select(`
         attendance_id,
-        enrollment_id,
-        schedule_id,
         status,
         attendance_date,
         recorded_at,
         enrollments!inner (
-          enrollment_id,
-          user_id,
-          course_id,
           users!inner (
-            user_id,
             nim,
-            full_name,
-            email
+            full_name
           ),
           courses!inner (
-            course_id,
             course_code,
             course_name
           )

@@ -4,18 +4,24 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <meta charset="utf-8" />
     <title>Camera - Smart Attendance Admin</title>
-    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" />
+    <!-- Preconnect to external domains -->
+    <link rel="preconnect" href="https://cdnjs.cloudflare.com" crossorigin>
+    <link rel="dns-prefetch" href="https://cdnjs.cloudflare.com">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" media="print" onload="this.media='all'" />
   <link rel="stylesheet" href="/global.css" />
   <link rel="stylesheet" href="/src/pages/camera/style.css" />
   </head>
   <body>
+    <script src="/config.js" defer></script>
+    <script src="/utils.js" defer></script>
+    <script src="/debounce.js" defer></script>
     <div class="camera">
       <div class="rectangle">
-  <a href="/dashboard" class="back-button" aria-label="Back to Dashboard">
+  <a href="/" class="back-button" aria-label="Back to Dashboard">
           <i class="fas fa-arrow-left"></i>
         </a>
         <nav class="frame-12" aria-label="Main navigation">
-          <a href="/dashboard" class="div-wrapper-2">
+          <a href="/" class="div-wrapper-2">
             <span class="text-wrapper-7">Dashboard</span>
           </a>
           <a href="/request-list" class="div-wrapper-2">

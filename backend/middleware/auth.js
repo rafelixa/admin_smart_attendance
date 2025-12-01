@@ -3,7 +3,11 @@
 const jwt = require('jsonwebtoken');
 const supabase = require('../config/db');
 
-const JWT_SECRET = process.env.JWT_SECRET || 'change-me-to-secure-secret';
+const JWT_SECRET = process.env.JWT_SECRET;
+
+if (!JWT_SECRET) {
+  throw new Error('JWT_SECRET must be set in environment variables');
+}
 
 // Verify token middleware - sets req.user on success
 const verifyToken = async (req, res, next) => {

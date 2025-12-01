@@ -3,19 +3,23 @@
   <head>
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <meta charset="utf-8" />
-    <title>User Detail - Smart Attendance Admin</title>
-    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" />
-    <link rel="stylesheet" href="/global.css" />
-    <link rel="stylesheet" href="/src/pages/userlist_manage/style.css" />
+    <title>User Management - Smart Attendance Admin</title>
+    <link rel="preconnect" href="https://cdnjs.cloudflare.com" crossorigin>
+    <link rel="dns-prefetch" href="https://cdnjs.cloudflare.com">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" media="print" onload="this.media='all'" />
+  <link rel="stylesheet" href="/global.css" />
+  <link rel="stylesheet" href="/src/pages/userlist_manage/style.css" />
   </head>
   <body>
+    <script src="/config.js" defer></script>
+    <script src="/utils.js" defer></script>
     <div class="userlist-manage">
       <header class="rectangle">
         <a href="/userlist" class="back-button" aria-label="Back to User List">
           <i class="fas fa-arrow-left"></i>
         </a>
         <nav class="frame-12" aria-label="Main navigation">
-          <a href="/dashboard" class="div-wrapper-2">
+          <a href="/" class="div-wrapper-2">
             <span class="text-wrapper-7">Dashboard</span>
           </a>
           <a href="/request-list" class="div-wrapper-2">
@@ -30,7 +34,7 @@
         </nav>
       </header>
 
-      <main class="content">
+      <main class="content" style="display:none">
         <!-- Detail Container -->
         <section class="detail-container">
           <h2 class="section-title">Detail</h2>
@@ -51,42 +55,6 @@
               <div class="header-cell excused-col">Excused</div>
             </div>
             <!-- Data will be rendered by JS -->
-
-            <div class="table-row">
-              <div class="table-cell class-name">PPWR 1590</div>
-              <div class="table-cell present-cell">7/16</div>
-              <div class="table-cell late-cell">0/16</div>
-              <div class="table-cell absent-cell">0/16</div>
-              <div class="table-cell sick-cell">0/16</div>
-              <div class="table-cell excused-cell">0/16</div>
-            </div>
-
-            <div class="table-row">
-              <div class="table-cell class-name">PPLR 1591</div>
-              <div class="table-cell present-cell">7/16</div>
-              <div class="table-cell late-cell">0/16</div>
-              <div class="table-cell absent-cell">0/16</div>
-              <div class="table-cell sick-cell">0/16</div>
-              <div class="table-cell excused-cell">0/16</div>
-            </div>
-
-            <div class="table-row">
-              <div class="table-cell class-name">KKJR 1597</div>
-              <div class="table-cell present-cell">4/16</div>
-              <div class="table-cell late-cell">2/16</div>
-              <div class="table-cell absent-cell">1/16</div>
-              <div class="table-cell sick-cell">0/16</div>
-              <div class="table-cell excused-cell">0/16</div>
-            </div>
-
-            <div class="table-row">
-              <div class="table-cell class-name">KKLR 1613</div>
-              <div class="table-cell present-cell">7/16</div>
-              <div class="table-cell late-cell">0/16</div>
-              <div class="table-cell absent-cell">0/16</div>
-              <div class="table-cell sick-cell">0/16</div>
-              <div class="table-cell excused-cell">0/16</div>
-            </div>
           </div>
         </section>
 
@@ -97,60 +65,7 @@
             Student has attendance issues in the following courses:
           </p>
           <div class="condition-alerts">
-            <div class="alert exceeded">
-              <div class="alert-header">
-                <i class="fas fa-exclamation-triangle alert-icon"></i>
-                <div class="alert-title">Exceeded Tolerance Limit</div>
-              </div>
-              <p class="alert-subtitle">The following courses have exceeded tolerance limits:</p>
-              <div class="alert-classes">
-                <div class="class-alert-item">
-                  <div>
-                    <div style="display: flex; justify-content: space-between; align-items: center;">
-                      <div class="class-alert-name">KKKR 1543</div>
-                      <div class="class-alert-details">
-                        <span class="class-alert-late">Late: 0</span>
-                        <span class="class-alert-absent">Absent: 4</span>
-                        <span class="class-alert-total">Total: 4/3</span>
-                      </div>
-                    </div>
-                  </div>
-                </div>
-                <div class="class-alert-item">
-                  <div>
-                    <div style="display: flex; justify-content: space-between; align-items: center;">
-                      <div class="class-alert-name">KKLR 1544</div>
-                      <div class="class-alert-details">
-                        <span class="class-alert-late">Late: 0</span>
-                        <span class="class-alert-absent">Absent: 4</span>
-                        <span class="class-alert-total">Total: 4/3</span>
-                      </div>
-                    </div>
-                  </div>
-                </div>
-              </div>
-            </div>
-            <div class="alert reached">
-              <div class="alert-header">
-                <i class="fas fa-exclamation-circle alert-icon"></i>
-                <div class="alert-title">Reached Tolerance Limit</div>
-              </div>
-              <p class="alert-subtitle">The following courses have reached tolerance limits:</p>
-              <div class="alert-classes">
-                <div class="class-alert-item">
-                  <div>
-                    <div style="display: flex; justify-content: space-between; align-items: center;">
-                      <div class="class-alert-name">KKJR 1597</div>
-                      <div class="class-alert-details">
-                        <span class="class-alert-late">Late: 2</span>
-                        <span class="class-alert-absent">Absent: 1</span>
-                        <span class="class-alert-total">Total: 3/3</span>
-                      </div>
-                    </div>
-                  </div>
-                </div>
-              </div>
-            </div>
+            <!-- Data will be rendered by JS -->
           </div>
         </section>
       </main>

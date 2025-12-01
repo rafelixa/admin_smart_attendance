@@ -3,8 +3,8 @@
 // Fetch real data from Supabase via Backend API
 // ========================================
 
-// API Configuration (dev vs prod)
-const API_URL = (typeof window !== 'undefined' && (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1')) ? 'http://localhost:3000/api' : '/api';
+// API Configuration - use global config
+const API_URL = window.APP_CONFIG ? window.APP_CONFIG.API_URL : '/api';
 
 // AUTHENTICATION CHECK: now uses JWT session to backend
 
@@ -18,27 +18,93 @@ function getUserIdFromURL() {
 }
 
 // ========================================
-// FETCH STUDENT DETAIL FROM API
+// LOADING FUNCTIONS
 // ========================================
-async function fetchStudentDetail(userId) {
+function showLoading() {
+  // Remove existing overlay if any
+  const existingOverlay = document.querySelector('.loading-overlay');
+  if (existingOverlay) return;
+  
+  // Create full page overlay
+  const overlay = document.createElement('div');
+  overlay.className = 'loading-overlay';
+  overlay.style.cssText = `
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100vw;
+    height: 100vh;
+    background: rgba(246, 246, 246, 0.98);
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    z-index: 9999;
+  `;
+  overlay.innerHTML = `
+    <i class="fas fa-spinner fa-spin" style="font-size: 48px; margin-bottom: 20px; color: #666;"></i>
+    <p style="font-size: 18px; color: #666; font-family: Poppins, sans-serif;">Loading student detail...</p>
+  `;
+  document.body.appendChild(overlay);
+}
+
+function hideLoading() {
+  const overlay = document.querySelector('.loading-overlay');
+  if (overlay) {
+    overlay.remove();
+  }
+}
+
+// In-flight request control
+let detailAbortController = null;
+
+// ========================================
+// FETCH STUDENT DETAIL FROM API (cancellable)
+// ========================================
+async function fetchStudentDetail(userId, showLoadingOverlay = false) {
   try {
+    if (showLoadingOverlay) {
+      showLoading();
+    }
+
+    // Cancel previous request to avoid race conditions with auto-refresh
+    if (detailAbortController) {
+      detailAbortController.abort();
+    }
+    detailAbortController = new AbortController();
+
     const token = localStorage.getItem('token');
     const response = await fetch(`${API_URL}/users/students/${userId}`, {
       method: 'GET',
       headers: {
         'Content-Type': 'application/json',
         'Authorization': token ? `Bearer ${token}` : ''
-      }
+      },
+      signal: detailAbortController.signal
     });
     const data = await response.json();
+    
     if (data.success) {
       displayStudentDetail(data.data);
+      if (showLoadingOverlay) {
+        hideLoading();
+      }
     } else {
+      if (showLoadingOverlay) {
+        hideLoading();
+      }
       console.error('Failed to fetch student detail:', data.message);
       alert('Student not found');
       window.location.href = '/userlist';
     }
   } catch (error) {
+    if (error.name === 'AbortError') {
+      // ignored: a newer request started
+      return;
+    }
+    if (showLoadingOverlay) {
+      hideLoading();
+    }
     console.error('Error fetching student detail:', error);
     alert('Connection error. Please check if backend is running.');
   }
@@ -72,6 +138,8 @@ function displayStudentDetail(data) {
   updateConditionAlerts(tolerance);
 
   console.log('Student detail displayed successfully');
+  const content = document.querySelector('.content');
+  if (content) content.style.display = 'block';
 }
 
 // ========================================
@@ -164,13 +232,16 @@ function createAlert(type, title, subtitle, courses) {
 
   let coursesHTML = '';
   courses.forEach(course => {
+    const total = course.attendance.late + course.attendance.absent;
     coursesHTML += `
       <div class="class-alert-item">
         <div>
           <div style="display: flex; justify-content: space-between; align-items: center;">
             <div class="class-alert-name">${course.course_code}</div>
             <div class="class-alert-details">
-              Late: ${course.attendance.late} | Absent: ${course.attendance.absent}
+              <span class="class-alert-late">Late: ${course.attendance.late}</span>
+              <span class="class-alert-absent">Absent: ${course.attendance.absent}</span>
+              <span class="class-alert-total">Total: ${total}/3</span>
             </div>
           </div>
         </div>
@@ -196,6 +267,8 @@ function createAlert(type, title, subtitle, courses) {
 // INITIALIZE PAGE
 // ========================================
   document.addEventListener('DOMContentLoaded', async function () {
+  // Show loading immediately to avoid flash of empty content
+  showLoading();
   // Proteksi: cek session via backend JWT
   if (!(await window.checkAuth?.())) {
     document.body.innerHTML = '';
@@ -209,10 +282,10 @@ function createAlert(type, title, subtitle, courses) {
     window.location.href = '/userlist';
     return;
   }
-  // Fetch student detail
-  fetchStudentDetail(userId);
-  // Auto-refresh every 30 seconds
+  // Fetch student detail (loading overlay already shown)
+  fetchStudentDetail(userId, true);
+  // Auto-refresh every 30 seconds (without loading overlay)
   setInterval(() => {
-    fetchStudentDetail(userId);
+    fetchStudentDetail(userId, false);
   }, 30000);
 });

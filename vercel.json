@@ -8,7 +8,6 @@
   "routes": [
     { "src": "/api/(.*)", "dest": "/backend/server.js" },
     { "src": "^/login$", "dest": "/frontend/src/pages/login/index.html" },
-    { "src": "^/dashboard$", "dest": "/frontend/src/pages/dashboard/index.html" },
     { "src": "^/camera$", "dest": "/frontend/src/pages/camera/index.html" },
     { "src": "^/request-list$", "dest": "/frontend/src/pages/request_list/index.html" },
     { "src": "^/request-list/(.*)", "dest": "/frontend/src/pages/request_list/$1" },

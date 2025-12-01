@@ -1,33 +1,54 @@
-<!doctype html>
+<!DOCTYPE html>
 <html lang="en">
   <head>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <meta charset="utf-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1" />
-    <title>Smart Attendance — Landing</title>
-    <link rel="preconnect" href="https://fonts.googleapis.com">
-    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-    <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;600&display=swap" rel="stylesheet">
-    <style>
-      :root{--bg1:#0f172a;--bg2:#0b1220;--text:#ffffff;--accent:#0b1220}
-      html,body{height:100%;margin:0}
-      body{
-        font-family: 'Poppins', system-ui, -apple-system, 'Segoe UI', Roboto, 'Helvetica Neue', Arial;
-        background: linear-gradient(135deg,var(--bg1),var(--bg2));
-        display:flex;align-items:center;justify-content:center;color:var(--text);
-      }
-      .landing-wrap{display:flex;flex-direction:column;align-items:center;gap:20px;padding:24px}
-      h1.landing-title{font-size:40px;margin:0;font-weight:600;text-align:center}
-      .login-btn{background:#ffffff;color:var(--accent);padding:12px 30px;border-radius:10px;border:0;font-weight:600;text-decoration:none;cursor:pointer}
-      .login-btn:focus{outline:2px solid rgba(255,255,255,0.12);outline-offset:4px}
-      .subtext{opacity:0.85;font-size:14px}
-      @media (max-width:420px){h1.landing-title{font-size:32px}}
-    </style>
+    <title>Smart Attendance Admin Dashboard</title>
+    <!-- Preconnect to external domains for faster loading -->
+    <link rel="preconnect" href="https://cdnjs.cloudflare.com" crossorigin>
+    <link rel="dns-prefetch" href="https://cdnjs.cloudflare.com">
+    <!-- Preload critical CSS -->
+    <link rel="preload" href="/global.css" as="style">
+    <link rel="preload" href="/src/pages/dashboard/style.css" as="style">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" media="print" onload="this.media='all'" />
+  <link rel="stylesheet" href="/global.css" />
+  <link rel="stylesheet" href="/src/pages/dashboard/style.css" />
   </head>
   <body>
-    <div class="landing-wrap">
-      <h1 class="landing-title">Smart Attendance - Admin</h1>
-      <a class="login-btn" href="/login">Login</a>
-      <div class="subtext">Admin panel access</div>
+    <script src="/config.js" defer></script>
+    <script src="/utils.js" defer></script>
+    <script src="/debounce.js" defer></script>
+    <div class="dashboard">
+      <div class="group">
+        <div class="rectangle"></div>
+      </div>
+      <div class="frame">
+        <div class="div">
+          <div class="text-wrapper">Welcome ADMIN!</div>
+          <p class="p">
+            Colossians 3:23: "Whatever you do, work at it with all your heart, as working for the Lord, not for human
+            masters,"
+          </p>
+        </div>
+        <div class="sign-out"><div class="text-wrapper-2">Log out</div></div>
+      </div>
+      <div class="buttons-container">
+  <a href="/request-list" class="request-list-button">
+          <i class="fas fa-list-alt icon"></i>
+          <div class="text-wrapper-3">Request List</div>
+        </a>
+  <a href="/userlist" class="user-list-button">
+          <i class="fas fa-users img"></i>
+          <div class="text-wrapper-3">User List</div>
+        </a>
+  <a href="/camera" class="camera-button">
+          <i class="fas fa-camera img"></i>
+          <div class="text-wrapper-3">Camera Log</div>
+        </a>
+      </div>
     </div>
+    
+  <script src="/auth.js"></script>
+  <script type="module" src="/src/pages/dashboard/script.js"></script>
   </body>
 </html>

@@ -3,7 +3,7 @@
 document.addEventListener('DOMContentLoaded', async function () {
     // Jika sudah login/session valid, redirect ke dashboard
     if (window.checkAuth && await window.checkAuth()) {
-        window.location.href = '/dashboard';
+        window.location.href = '/';
         return;
     }
 
@@ -14,8 +14,8 @@ document.addEventListener('DOMContentLoaded', async function () {
     const usernameInput = document.getElementById('username');
     const loginButton = document.querySelector('.login-button');
 
-    // Backend API URL (dev vs prod)
-    const API_URL = (typeof window !== 'undefined' && (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1')) ? 'http://localhost:3000/api' : '/api';
+    // Backend API URL - use global config
+    const API_URL = window.APP_CONFIG ? window.APP_CONFIG.API_URL : '/api';
 
     // Password visibility toggle
     if (passwordToggle && passwordInput) {
@@ -78,7 +78,7 @@ document.addEventListener('DOMContentLoaded', async function () {
                         const verifyData = await verifyRes.json();
                         console.log('verify /auth/me response', verifyRes.status, verifyData);
                         if (verifyRes.ok && verifyData.success && verifyData.data && verifyData.data.user) {
-                            window.location.href = '/dashboard';
+                            window.location.href = '/';
                             return;
                         }
                         // If verification failed, show server-provided message

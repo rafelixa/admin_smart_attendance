@@ -1,13 +1,32 @@
 // Clean Authentication Controller (stateless JWT)
 // Uses Supabase client only to read users table for credential verification
 const supabase = require('../config/db');
+const bcrypt = require('bcryptjs');
 const crypto = require('crypto');
 const jwt = require('jsonwebtoken');
 
-const JWT_SECRET = process.env.JWT_SECRET || 'change-me-to-secure-secret';
+const JWT_SECRET = process.env.JWT_SECRET;
 const JWT_EXPIRES_IN = process.env.JWT_EXPIRES_IN || '7d';
 
-const hashPassword = (password) => crypto.createHash('sha256').update(password).digest('hex');
+if (!JWT_SECRET) {
+  throw new Error('JWT_SECRET must be set in environment variables');
+}
+
+// Use bcrypt for secure password hashing (for new passwords)
+const hashPassword = async (password) => await bcrypt.hash(password, 10);
+
+// Support both SHA256 (legacy) and bcrypt (new) for backward compatibility
+const verifyPassword = async (password, storedHash) => {
+  // Check if it's bcrypt format (starts with $2a$, $2b$, or $2y$)
+  if (storedHash.startsWith('$2a$') || storedHash.startsWith('$2b$') || storedHash.startsWith('$2y$')) {
+    // Use bcrypt verification
+    return await bcrypt.compare(password, storedHash);
+  } else {
+    // Legacy SHA256 verification
+    const sha256Hash = crypto.createHash('sha256').update(password).digest('hex');
+    return sha256Hash === storedHash;
+  }
+};
 
 const login = async (req, res) => {
   try {
@@ -26,8 +45,9 @@ const login = async (req, res) => {
       return res.status(401).json({ success: false, message: 'Invalid username or password' });
     }
 
-    const hashedPassword = hashPassword(password);
-    if (hashedPassword !== user.password_hash) {
+    // Verify password (supports both SHA256 legacy and bcrypt new format)
+    const isPasswordValid = await verifyPassword(password, user.password_hash);
+    if (!isPasswordValid) {
       console.debug('[authController] password mismatch for user_id:', user.user_id);
       return res.status(401).json({ success: false, message: 'Invalid username or password' });
     }

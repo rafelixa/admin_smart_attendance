@@ -7,14 +7,6 @@ function toggleFilter() {
   } else {
     popup.style.display = 'block';
     overlay.style.display = 'block';
-    // Tambahkan event listener agar popup tertutup saat opsi diklik
-    popup.querySelectorAll('.filter-option').forEach(option => {
-      option.onclick = function(event) {
-        filterBy(option.getAttribute('data-filter'));
-        popup.style.display = 'none';
-        overlay.style.display = 'none';
-      };
-    });
   }
 }
 
@@ -25,11 +17,21 @@ function closeFilter() {
 
 let currentFilter = 'all';
 let allStudentsData = [];
+let currentPage = 1;
+let totalPages = 1;
+let totalRecords = 0;
+const ITEMS_PER_PAGE = 50;
 
-async function filterBy(tolerance) {
+// Request control & page cache
+let abortController = null;
+const studentsCache = new Map(); // key: `${currentPage}` + `:${currentFilter}`
+
+async function filterBy(tolerance, targetElement) {
   console.log('Filter by:', tolerance);
   
   currentFilter = tolerance;
+  // Clear cached pages when changing tolerance filter to avoid stale views
+  studentsCache.clear?.();
   
   // Remove active class from all options
   document.querySelectorAll('.filter-option').forEach(option => {
@@ -37,19 +39,45 @@ async function filterBy(tolerance) {
   });
   
   // Add active class to clicked option
-  event.target.classList.add('active');
+  if (targetElement) {
+    targetElement.classList.add('active');
+  } else {
+    const activeOption = document.querySelector(`.filter-option[data-filter="${tolerance}"]`);
+    if (activeOption) activeOption.classList.add('active');
+  }
   
-  // Fetch students with tolerance data
-  await fetchStudentsWithTolerance(tolerance);
+  // Reset to page 1 and re-fetch with new filter
+  currentPage = 1;
+  await fetchStudentsWithTolerance(tolerance, 1);
   
   closeFilter();
 }
 
 // ========================================
-// API CONFIGURATION (development vs production)
-// use localhost during development, otherwise use relative '/api' so Vercel routes work
+// APPLY FILTER TO EXISTING DATA (for display only)
 // ========================================
-const API_URL = (typeof window !== 'undefined' && (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1')) ? 'http://localhost:3000/api' : '/api';
+function applyFilterLocal(filter) {
+  let filteredStudents = allStudentsData;
+  
+  // Backend returns boolean flags: tolerance.exceeded, tolerance.reached
+  if (filter === 'past') {
+    filteredStudents = allStudentsData.filter(s => 
+      s.tolerance && s.tolerance.exceeded === true
+    );
+  } else if (filter === 'reach') {
+    filteredStudents = allStudentsData.filter(s => 
+      s.tolerance && s.tolerance.reached === true
+    );
+  }
+  
+  console.log(`Filter by: ${filter} - Displaying ${filteredStudents.length} students`);
+  displayStudents(filteredStudents);
+}
+
+// ========================================
+// API CONFIGURATION - use global config
+// ========================================
+const API_URL = window.APP_CONFIG ? window.APP_CONFIG.API_URL : '/api';
 
 // AUTHENTICATION CHECK: now uses JWT session to backend
 
@@ -57,17 +85,42 @@ const API_URL = (typeof window !== 'undefined' && (window.location.hostname === 
 // ========================================
 // FETCH STUDENTS WITH TOLERANCE DATA
 // ========================================
-async function fetchStudentsWithTolerance(filter = 'all') {
+async function fetchStudentsWithTolerance(filter = 'all', page = 1) {
   try {
     showLoading();
+
+    // Cancel any in-flight request to avoid overlap on rapid pagination
+    if (abortController) abortController.abort();
+    abortController = new AbortController();
+
     const token = localStorage.getItem('token');
-    // Fetch all students first
-    const response = await fetch(`${API_URL}/users/students`, {
+    const params = new URLSearchParams({ page, limit: ITEMS_PER_PAGE });
+    
+    // Add filter parameter to request
+    if (filter && filter !== 'all') {
+      params.append('filter', filter);
+    }
+
+    // Serve cached data immediately if available
+    const cacheKey = `${String(filter).toLowerCase()}:${page}`;
+    if (studentsCache.has(cacheKey)) {
+      const cached = studentsCache.get(cacheKey);
+      allStudentsData = cached.students;
+      currentPage = cached.page;
+      totalPages = cached.totalPages;
+      totalRecords = cached.total;
+      displayStudents(allStudentsData);
+      updatePagination();
+      // continue to refresh in background
+    }
+
+    const response = await fetch(`${API_URL}/users/students?${params.toString()}`, {
       method: 'GET',
       headers: {
         'Content-Type': 'application/json',
         'Authorization': token ? `Bearer ${token}` : ''
-      }
+      },
+      signal: abortController.signal
     });
 
     const data = await response.json();
@@ -78,43 +131,26 @@ async function fetchStudentsWithTolerance(filter = 'all') {
       return;
     }
 
-    const students = data.data.students;
-    // Fetch tolerance info for each student
-    const studentsWithTolerance = await Promise.all(
-      students.map(async (student) => {
-        try {
-          const detailResponse = await fetch(`${API_URL}/users/students/${student.user_id}`, {
-            headers: { 'Authorization': token ? `Bearer ${token}` : '' }
-          });
-          const detailData = await detailResponse.json();
-          if (detailData.success) {
-            return {
-              ...student,
-              tolerance: detailData.data.tolerance
-            };
-          }
-          return student;
-        } catch (err) {
-          console.error(`Error fetching tolerance for ${student.user_id}:`, err);
-          return student;
-        }
-      })
-    );
+    currentPage = data.page;
+    totalPages = data.totalPages;
+    totalRecords = data.total;
+    const students = Array.isArray(data?.data?.students) ? data.data.students : [];
 
-    allStudentsData = studentsWithTolerance;
-    // Apply filter
-    let filteredStudents = studentsWithTolerance;
-    if (filter === 'past') {
-      filteredStudents = studentsWithTolerance.filter(s => 
-        s.tolerance && s.tolerance.exceeded && s.tolerance.exceeded.length > 0
-      );
-    } else if (filter === 'reach') {
-      filteredStudents = studentsWithTolerance.filter(s => 
-        s.tolerance && s.tolerance.reached && s.tolerance.reached.length > 0
-      );
-    }
-    displayStudents(filteredStudents);
+    allStudentsData = students; // already includes tolerance
+
+    // Cache fresh
+    studentsCache.set(cacheKey, {
+      students,
+      page: currentPage,
+      totalPages,
+      total: totalRecords
+    });
+
+    // Display all students (don't apply client-side filter, data is already filtered from server if needed)
+    displayStudents(allStudentsData);
+    updatePagination();
   } catch (error) {
+    if (error.name === 'AbortError') return;
     console.error('Error fetching students:', error);
     showError('Connection error. Please check if backend is running.');
   }
@@ -137,10 +173,13 @@ function displayStudents(students) {
     return;
   }
 
+  // Use DocumentFragment for batch rendering - faster than individual appends
+  const fragment = document.createDocumentFragment();
+
   // Keep header row
   const header = container.querySelector('.frame-3');
   
-  // Clear all content (including loading message and old data)
+  // Clear all content (removes all old data and messages)
   container.innerHTML = '';
   
   // Re-add header
@@ -151,6 +190,7 @@ function displayStudents(students) {
   // Check if no students
   if (!students || students.length === 0) {
     const noData = document.createElement('div');
+    noData.className = 'empty-message';
     noData.style.textAlign = 'center';
     noData.style.padding = '40px';
     noData.style.color = '#666';
@@ -159,6 +199,8 @@ function displayStudents(students) {
     return;
   }
 
+  // Use DocumentFragment for batch rendering - much faster
+  
   // Add student rows
   students.forEach((student, index) => {
     const row = document.createElement('div');
@@ -185,10 +227,129 @@ function displayStudents(students) {
       row.style.backgroundColor = '';
     });
 
-    container.appendChild(row);
+    fragment.appendChild(row);
+  });
+  
+  // Batch append using requestAnimationFrame for smooth rendering
+  requestAnimationFrame(() => {
+    container.appendChild(fragment);
   });
 
   console.log(`[SUCCESS] Displayed ${students.length} students from database`);
+}
+
+// ========================================
+// PAGINATION FUNCTIONS
+// ========================================
+function updatePagination() {
+  let paginationContainer = document.querySelector('.pagination-container');
+  
+  if (!paginationContainer) {
+    paginationContainer = document.createElement('div');
+    paginationContainer.className = 'pagination-container';
+    const tableWrapper = document.querySelector('.table-wrapper');
+    if (tableWrapper && tableWrapper.parentNode) {
+      tableWrapper.parentNode.insertBefore(paginationContainer, tableWrapper.nextSibling);
+    }
+  }
+  
+  paginationContainer.innerHTML = '';
+  
+  if (totalPages <= 1) {
+    paginationContainer.style.display = 'none';
+    return;
+  }
+  
+  paginationContainer.style.display = 'flex';
+  
+  const startRecord = (currentPage - 1) * ITEMS_PER_PAGE + 1;
+  const endRecord = Math.min(currentPage * ITEMS_PER_PAGE, totalRecords);
+  
+  const paginationInfo = document.createElement('div');
+  paginationInfo.className = 'pagination-info';
+  paginationInfo.textContent = `Showing ${startRecord}-${endRecord} of ${totalRecords} records`;
+  paginationContainer.appendChild(paginationInfo);
+  
+  const buttonsContainer = document.createElement('div');
+  buttonsContainer.className = 'pagination-buttons';
+  
+  const prevBtn = document.createElement('button');
+  prevBtn.className = 'pagination-btn';
+  prevBtn.textContent = '← Previous';
+  prevBtn.disabled = currentPage === 1;
+  prevBtn.onclick = () => goToPage(currentPage - 1);
+  buttonsContainer.appendChild(prevBtn);
+  
+  const maxVisiblePages = 5;
+  let startPage = Math.max(1, currentPage - Math.floor(maxVisiblePages / 2));
+  let endPage = Math.min(totalPages, startPage + maxVisiblePages - 1);
+  
+  if (endPage - startPage < maxVisiblePages - 1) {
+    startPage = Math.max(1, endPage - maxVisiblePages + 1);
+  }
+  
+  if (startPage > 1) {
+    const firstBtn = document.createElement('button');
+    firstBtn.className = 'pagination-btn';
+    firstBtn.textContent = '1';
+    firstBtn.onclick = () => goToPage(1);
+    buttonsContainer.appendChild(firstBtn);
+    
+    if (startPage > 2) {
+      const ellipsis = document.createElement('span');
+      ellipsis.className = 'pagination-ellipsis';
+      ellipsis.textContent = '...';
+      buttonsContainer.appendChild(ellipsis);
+    }
+  }
+  
+  for (let i = startPage; i <= endPage; i++) {
+    const pageBtn = document.createElement('button');
+    pageBtn.className = 'pagination-btn';
+    if (i === currentPage) {
+      pageBtn.classList.add('active');
+    }
+    pageBtn.textContent = i;
+    pageBtn.onclick = () => goToPage(i);
+    buttonsContainer.appendChild(pageBtn);
+  }
+  
+  if (endPage < totalPages) {
+    if (endPage < totalPages - 1) {
+      const ellipsis = document.createElement('span');
+      ellipsis.className = 'pagination-ellipsis';
+      ellipsis.textContent = '...';
+      buttonsContainer.appendChild(ellipsis);
+    }
+    
+    const lastBtn = document.createElement('button');
+    lastBtn.className = 'pagination-btn';
+    lastBtn.textContent = totalPages;
+    lastBtn.onclick = () => goToPage(totalPages);
+    buttonsContainer.appendChild(lastBtn);
+  }
+  
+  const nextBtn = document.createElement('button');
+  nextBtn.className = 'pagination-btn';
+  nextBtn.textContent = 'Next →';
+  nextBtn.disabled = currentPage === totalPages;
+  nextBtn.onclick = () => goToPage(currentPage + 1);
+  buttonsContainer.appendChild(nextBtn);
+  
+  paginationContainer.appendChild(buttonsContainer);
+}
+
+async function goToPage(page) {
+  if (page < 1 || page > totalPages || page === currentPage) return;
+  
+  currentPage = page;
+  // Pass current filter to maintain filter state during pagination
+  await fetchStudentsWithTolerance(currentFilter, page);
+  
+  const tableWrapper = document.querySelector('.table-wrapper');
+  if (tableWrapper) {
+    tableWrapper.scrollIntoView({ behavior: 'smooth', block: 'start' });
+  }
 }
 
 // ========================================
@@ -244,6 +405,8 @@ function showError(message) {
 // FILTER OPTION EVENT LISTENER
 // ========================================
 document.addEventListener('DOMContentLoaded', async function () {
+  // Show loading ASAP to avoid empty table flash
+  showLoading();
   // Proteksi: cek session via backend JWT
   if (!(await window.checkAuth?.())) {
     document.body.innerHTML = '';
@@ -272,17 +435,15 @@ document.addEventListener('DOMContentLoaded', async function () {
       });
     }
 
-  // Tambahkan event listener ke semua filter-option
+  // Tambahkan event listener ke semua filter-option (hanya sekali)
   document.querySelectorAll('.filter-option').forEach(option => {
     option.addEventListener('click', function (e) {
       e.stopPropagation();
       const filterValue = this.getAttribute('data-filter');
-      filterBy(filterValue);
+      filterBy(filterValue, this);
     });
   });
 
-  // Fetch students awal
+  // Fetch students awal (hanya sekali saat load)
   fetchStudents();
-  // Auto-refresh every 30 detik
-  setInterval(fetchStudents, 30000);
 });

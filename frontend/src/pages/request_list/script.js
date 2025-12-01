@@ -1,8 +1,7 @@
 // ========================================
-// API CONFIGURATION (development vs production)
-// use localhost during development, otherwise use relative '/api' so Vercel routes work
+// API CONFIGURATION - use global config
 // ========================================
-const API_URL = (typeof window !== 'undefined' && (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1')) ? 'http://localhost:3000/api' : '/api';
+const API_URL = window.APP_CONFIG ? window.APP_CONFIG.API_URL : '/api';
 
 // AUTHENTICATION CHECK: now uses JWT session to backend
 
@@ -15,43 +14,32 @@ let allPermissions = [];
 let selectedDate = null;
 let currentMonth = new Date().getMonth();
 let currentYear = new Date().getFullYear();
+let currentPage = 1;
+let totalPages = 1;
+let totalRecords = 0;
+const ITEMS_PER_PAGE = 50;
+
+// Request control & simple cache to avoid re-fetching
+let abortController = null;
+const permissionsCache = new Map(); // key: `${filter}:${page}` -> array of permissions
 
 // ========================================
 // FETCH PERMISSIONS FROM API
 // ========================================
-async function fetchPermissions(status = 'all') {
-  try {
-    showLoading();
-    const token = localStorage.getItem('token');
-    // Always fetch all permissions first to enable client-side filtering
-    const response = await fetch(`${API_URL}/permissions`, {
-      method: 'GET',
-      headers: {
-        'Content-Type': 'application/json',
-        'Authorization': token ? `Bearer ${token}` : ''
-      }
-    });
+async function fetchPermissions(page = 1) {
+  showLoading();
+  await fetchPermissionsData(page);
+}
 
-    const data = await response.json();
-
-    if (!data.success) {
-      console.error('Failed to fetch permissions:', data.message);
-      showError('Failed to load permission requests');
-      return;
-    }
-
-    // Store all permissions
-    allPermissions = data.data;
-    // Filter based on status if needed
-    let filtered = allPermissions;
-    if (status !== 'all') {
-      filtered = allPermissions.filter(p => p.status === status);
-    }
-    displayPermissions(filtered);
-  } catch (error) {
-    console.error('Error fetching permissions:', error);
-    showError('Connection error. Please check if backend is running.');
-  }
+// ========================================
+// APPLY FILTER - NOW FETCHES FROM SERVER
+// ========================================
+async function applyFilter(filter) {
+  currentFilter = filter;
+  currentPage = 1; // Reset to page 1
+  // Clear cache when switching filters to avoid stale results
+  permissionsCache.clear();
+  await fetchPermissions(1);
 }
 
 // ========================================
@@ -67,7 +55,7 @@ function displayPermissions(permissions) {
   // Keep header row
   const header = container.querySelector('.frame-3');
   
-  // Clear all content
+  // Clear all content (removes all old data and messages)
   container.innerHTML = '';
   
   // Re-add header
@@ -78,6 +66,7 @@ function displayPermissions(permissions) {
   // Check if no permissions
   if (!permissions || permissions.length === 0) {
     const noData = document.createElement('div');
+    noData.className = 'empty-message';
     noData.style.textAlign = 'center';
     noData.style.padding = '40px';
     noData.style.color = '#666';
@@ -86,6 +75,9 @@ function displayPermissions(permissions) {
     return;
   }
 
+  // Use DocumentFragment for batch rendering
+  const fragment = document.createDocumentFragment();
+  
   // Add permission rows
   permissions.forEach((permission, index) => {
     const row = document.createElement('div');
@@ -111,7 +103,7 @@ function displayPermissions(permissions) {
       statusText = 'Pending';
     } else if (permission.status === 'approved') {
       statusClass = 'text-wrapper-5'; // Green
-      statusText = 'Approved';
+      statusText = 'APPROVED';
     } else if (permission.status === 'rejected') {
       statusClass = 'text-wrapper-6'; // Red
       statusText = 'Rejected';
@@ -144,10 +136,15 @@ function displayPermissions(permissions) {
       row.style.backgroundColor = '';
     });
 
-    container.appendChild(row);
+    fragment.appendChild(row);
+  });
+  
+  // Batch append using requestAnimationFrame
+  requestAnimationFrame(() => {
+    container.appendChild(fragment);
   });
 
-  console.log(`[SUCCESS] Displayed ${permissions.length} permission requests`);
+  console.log(`[SUCCESS] Displayed ${permissions.length} permissions from database`);
 }
 
 // ========================================
@@ -193,7 +190,7 @@ function showLoading() {
   loading.style.textAlign = 'center';
   loading.style.padding = '40px';
   loading.style.color = '#666';
-  loading.innerHTML = '<i class="fas fa-spinner fa-spin" style="font-size: 24px; margin-bottom: 10px;"></i><p>Loading permission requests...</p>';
+  loading.innerHTML = '<p>Loading permission requests...</p>';
   container.appendChild(loading);
 }
 
@@ -222,74 +219,87 @@ function showError(message) {
 // ========================================
 // FILTER POPUP FUNCTIONALITY
 // ========================================
-const filterButton = document.getElementById('filterButton');
-const filterOverlay = document.getElementById('filterOverlay');
-const filterPopup = document.getElementById('filterPopup');
-const filterOptions = document.querySelectorAll('.filter-option');
+function initializeFilterPopup() {
+  const filterButton = document.getElementById('filterButton');
+  const filterOverlay = document.getElementById('filterOverlay');
+  const filterPopup = document.getElementById('filterPopup');
+  const filterOptions = document.querySelectorAll('.filter-option');
 
-// Toggle popup
-filterButton.addEventListener('click', function(e) {
-  e.stopPropagation();
-  const isVisible = filterPopup.style.display === 'block';
-  
-  if (isVisible) {
-    filterPopup.style.display = 'none';
-    filterOverlay.style.display = 'none';
-  } else {
-    filterPopup.style.display = 'block';
-    filterOverlay.style.display = 'block';
-  }
-});
-
-// Close popup when clicking on overlay
-filterOverlay.addEventListener('click', function() {
-  filterPopup.style.display = 'none';
-  filterOverlay.style.display = 'none';
-});
-
-// Prevent popup from closing when clicking inside the popup
-filterPopup.addEventListener('click', function(e) {
-  e.stopPropagation();
-});
-
-// Handle filter option selection
-filterOptions.forEach(option => {
-  option.addEventListener('click', function() {
-    // Remove active class from all options
-    filterOptions.forEach(opt => opt.classList.remove('active'));
+  // Toggle popup
+  filterButton.addEventListener('click', function(e) {
+    e.stopPropagation();
+    const isVisible = filterPopup.style.display === 'block';
     
-    // Add active class to selected option
-    this.classList.add('active');
-    
-    // Get filter value
-    const filterValue = this.getAttribute('data-filter');
-    currentFilter = filterValue;
-    
-    console.log('Filter selected:', filterValue);
-    
-    // Apply filter based on type
-    if (filterValue === 'date') {
-      // Open calendar modal
-      openCalendarModal();
-      return;
-    } else if (filterValue === 'week') {
-      // Filter by current week
-      filterByWeek();
-    } else if (filterValue === 'all' || filterValue === 'pending') {
-      // Standard API filter
-      fetchPermissions(filterValue);
+    if (isVisible) {
+      filterPopup.style.display = 'none';
+      filterOverlay.style.display = 'none';
+    } else {
+      filterPopup.style.display = 'block';
+      filterOverlay.style.display = 'block';
     }
-    
-    // Close popup
+  });
+
+  // Close popup when clicking on overlay
+  filterOverlay.addEventListener('click', function() {
     filterPopup.style.display = 'none';
     filterOverlay.style.display = 'none';
   });
-});
+
+  // Prevent popup from closing when clicking inside the popup
+  filterPopup.addEventListener('click', function(e) {
+    e.stopPropagation();
+  });
+
+  // Handle filter option selection
+  filterOptions.forEach(option => {
+    option.addEventListener('click', async function() {
+      // Remove active class from all options
+      filterOptions.forEach(opt => opt.classList.remove('active'));
+      
+      // Add active class to selected option
+      this.classList.add('active');
+      
+      // Get filter value
+      const filterValue = this.getAttribute('data-filter');
+      currentFilter = filterValue;
+      
+      console.log('Filter selected:', filterValue);
+      
+      // Apply filter based on type
+      if (filterValue === 'date') {
+        // Open calendar modal
+        openCalendarModal();
+        return;
+      } else if (filterValue === 'week') {
+        // Filter by current week
+        await filterByWeek();
+      } else {
+        // Standard filter (all, pending, etc)
+        await applyFilter(filterValue);
+      }
+      
+      // Close popup
+      filterPopup.style.display = 'none';
+      filterOverlay.style.display = 'none';
+    });
+  });
+  
+  // Close popup when pressing Escape
+  document.addEventListener('keydown', function(e) {
+    if (e.key === 'Escape') {
+      filterPopup.style.display = 'none';
+      filterOverlay.style.display = 'none';
+    }
+  });
+}
 
 // ========================================
 // INITIALIZE PAGE
 // ========================================
 document.addEventListener('DOMContentLoaded', async function() {
+  // Show loading immediately BEFORE auth check
+  showLoading();
+  
   // Proteksi: cek session via backend JWT
   if (!(await window.checkAuth?.())) {
     document.body.innerHTML = '';
@@ -297,56 +307,145 @@ document.addEventListener('DOMContentLoaded', async function() {
     return;
   }
 
-  // Initial load
-  fetchPermissions('all');
+  // Set default active filter
+  const defaultFilter = document.querySelector('.filter-option[data-filter="all"]');
+  if (defaultFilter) defaultFilter.classList.add('active');
+
+  // Initialize filter popup functionality
+  initializeFilterPopup();
+  
+  // Initialize calendar functionality
+  initializeCalendar();
+
+  // Initial load - fetch permissions page 1 (loading already shown)
+  await fetchPermissionsData(1);
+  
   console.log('[SUCCESS] Request List page initialized');
 });
 
-// Close popup when pressing Escape
-document.addEventListener('keydown', function(e) {
-  if (e.key === 'Escape') {
-    filterPopup.style.display = 'none';
-    filterOverlay.style.display = 'none';
+// Separate function to fetch without showing loading again
+async function fetchPermissionsData(page = 1, skipDisplay = false) {
+  // Cancel any in-flight request to avoid overlap and UI stalls
+  if (abortController) {
+    abortController.abort();
   }
-});
+  abortController = new AbortController();
 
-// Set default active filter
-document.querySelector('.filter-option[data-filter="all"]').classList.add('active');
+  try {
+    const token = localStorage.getItem('token');
 
-// Add click handler for pending rows to navigate to detail page with ID parameter
-const pendingRows = document.querySelectorAll('.frame-4, .frame-6');
-pendingRows.forEach((row, index) => {
-  row.style.cursor = 'pointer';
-    row.addEventListener('click', function() {
-    // index 0 = request ID 1, index 1 = request ID 2
-    const requestId = index + 1;
-    window.location.href = `/request-list-manage/pending?id=${requestId}`;
-  });
-});
+    const params = new URLSearchParams({
+      page: page,
+      limit: ITEMS_PER_PAGE
+    });
 
-// Add click handler for approved rows to navigate to approved detail page
-const approvedRows = document.querySelectorAll('.frame-7, .frame-8, .frame-9, .frame-10');
-  approvedRows.forEach((row, index) => {
-  row.style.cursor = 'pointer';
-  row.addEventListener('click', function() {
-    // index 0 = approved ID 1, index 1 = approved ID 2, etc.
-    const requestId = index + 1;
-    window.location.href = `/request-list-manage/approved?id=${requestId}`;
-  });
-});
+    if (currentFilter !== 'all') {
+      // Normalize to lowercase to match backend values
+      params.append('status', String(currentFilter).toLowerCase());
+    }
 
-// Add click handler for rejected row to navigate to rejected detail page
-const rejectedRow = document.querySelector('.frame-11');
-  if (rejectedRow) {
-  rejectedRow.style.cursor = 'pointer';
-  rejectedRow.addEventListener('click', function() {
-    window.location.href = '/request-list-manage/rejected?id=1';
-  });
+    const cacheKey = `${currentFilter}:${page}`;
+    
+    // Don't use cache - always fetch fresh to avoid double rendering
+    // This ensures we only display once after fetch completes
+
+    const response = await fetch(`${API_URL}/permissions?${params.toString()}`, {
+      method: 'GET',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': token ? `Bearer ${token}` : ''
+      },
+      signal: abortController.signal
+    });
+
+    const data = await response.json();
+
+    if (!data.success) {
+      console.error('Failed to fetch permissions:', data.message);
+      showError('Failed to load permission requests');
+      return;
+    }
+
+    // Safety: ensure array and normalize data
+    allPermissions = Array.isArray(data.data) ? data.data : [];
+    currentPage = data.page || 1;
+    totalPages = data.totalPages || 1;
+    totalRecords = data.total || 0;
+
+    // Always cache fresh results
+    permissionsCache.set(cacheKey, {
+      data: allPermissions,
+      page: currentPage,
+      totalPages,
+      total: totalRecords
+    });
+
+    // Display fresh results (unless caller wants to do custom filtering first)
+    if (!skipDisplay) {
+      displayPermissions(allPermissions);
+      updatePagination();
+    }
+
+    console.log('[SUCCESS] Fetched', allPermissions.length, 'permissions from API');
+  } catch (error) {
+    if (error.name === 'AbortError') {
+      // Request intentionally cancelled due to new filter/page action
+      return;
+    }
+    console.error('Error fetching permissions:', error);
+    showError('Connection error. Please check if backend is running.');
+  }
 }
 
 // ========================================
 // CALENDAR MODAL FUNCTIONALITY
 // ========================================
+function initializeCalendar() {
+  // Calendar navigation
+  document.getElementById('prevMonth').addEventListener('click', function() {
+    currentMonth--;
+    if (currentMonth < 0) {
+      currentMonth = 11;
+      currentYear--;
+    }
+    renderCalendar();
+  });
+
+  document.getElementById('nextMonth').addEventListener('click', function() {
+    currentMonth++;
+    if (currentMonth > 11) {
+      currentMonth = 0;
+      currentYear++;
+    }
+    renderCalendar();
+  });
+
+  // Calendar actions
+  document.getElementById('cancelCalendar').addEventListener('click', function() {
+    closeCalendarModal();
+    document.getElementById('filterPopup').style.display = 'none';
+    document.getElementById('filterOverlay').style.display = 'none';
+  });
+
+  document.getElementById('confirmCalendar').addEventListener('click', function() {
+    if (!selectedDate) {
+      alert('Please select a date');
+      return;
+    }
+    
+    console.log('Selected date from calendar:', selectedDate);
+    filterByDate(selectedDate);
+    closeCalendarModal();
+    document.getElementById('filterPopup').style.display = 'none';
+    document.getElementById('filterOverlay').style.display = 'none';
+  });
+
+  // Close calendar on overlay click
+  document.getElementById('calendarOverlay').addEventListener('click', function() {
+    closeCalendarModal();
+  });
+}
+
 function openCalendarModal() {
   const modal = document.getElementById('calendarModal');
   modal.classList.add('active');
@@ -438,76 +537,160 @@ function renderCalendar() {
   }
 }
 
-// Calendar navigation
-document.getElementById('prevMonth').addEventListener('click', function() {
-  currentMonth--;
-  if (currentMonth < 0) {
-    currentMonth = 11;
-    currentYear--;
+
+
+// ========================================
+// PAGINATION FUNCTIONS
+// ========================================
+function updatePagination() {
+  let paginationContainer = document.querySelector('.pagination-container');
+  
+  if (!paginationContainer) {
+    paginationContainer = document.createElement('div');
+    paginationContainer.className = 'pagination-container';
+    const tableWrapper = document.querySelector('.table-wrapper');
+    if (tableWrapper && tableWrapper.parentNode) {
+      tableWrapper.parentNode.insertBefore(paginationContainer, tableWrapper.nextSibling);
+    }
   }
-  renderCalendar();
-});
-
-document.getElementById('nextMonth').addEventListener('click', function() {
-  currentMonth++;
-  if (currentMonth > 11) {
-    currentMonth = 0;
-    currentYear++;
-  }
-  renderCalendar();
-});
-
-// Calendar actions
-document.getElementById('cancelCalendar').addEventListener('click', function() {
-  closeCalendarModal();
-  filterPopup.style.display = 'none';
-  filterOverlay.style.display = 'none';
-});
-
-document.getElementById('confirmCalendar').addEventListener('click', function() {
-  if (!selectedDate) {
-    alert('Please select a date');
+  
+  paginationContainer.innerHTML = '';
+  
+  if (totalPages <= 1) {
+    paginationContainer.style.display = 'none';
     return;
   }
   
-  console.log('Selected date from calendar:', selectedDate);
-  filterByDate(selectedDate);
-  closeCalendarModal();
-  filterPopup.style.display = 'none';
-  filterOverlay.style.display = 'none';
-});
+  paginationContainer.style.display = 'flex';
+  
+  const startRecord = (currentPage - 1) * ITEMS_PER_PAGE + 1;
+  const endRecord = Math.min(currentPage * ITEMS_PER_PAGE, totalRecords);
+  
+  const paginationInfo = document.createElement('div');
+  paginationInfo.className = 'pagination-info';
+  paginationInfo.textContent = `Showing ${startRecord}-${endRecord} of ${totalRecords} records`;
+  paginationContainer.appendChild(paginationInfo);
+  
+  const buttonsContainer = document.createElement('div');
+  buttonsContainer.className = 'pagination-buttons';
+  
+  const prevBtn = document.createElement('button');
+  prevBtn.className = 'pagination-btn';
+  prevBtn.textContent = '← Previous';
+  prevBtn.disabled = currentPage === 1;
+  prevBtn.onclick = () => goToPage(currentPage - 1);
+  buttonsContainer.appendChild(prevBtn);
+  
+  const maxVisiblePages = 5;
+  let startPage = Math.max(1, currentPage - Math.floor(maxVisiblePages / 2));
+  let endPage = Math.min(totalPages, startPage + maxVisiblePages - 1);
+  
+  if (endPage - startPage < maxVisiblePages - 1) {
+    startPage = Math.max(1, endPage - maxVisiblePages + 1);
+  }
+  
+  if (startPage > 1) {
+    const firstBtn = document.createElement('button');
+    firstBtn.className = 'pagination-btn';
+    firstBtn.textContent = '1';
+    firstBtn.onclick = () => goToPage(1);
+    buttonsContainer.appendChild(firstBtn);
+    
+    if (startPage > 2) {
+      const ellipsis = document.createElement('span');
+      ellipsis.className = 'pagination-ellipsis';
+      ellipsis.textContent = '...';
+      buttonsContainer.appendChild(ellipsis);
+    }
+  }
+  
+  for (let i = startPage; i <= endPage; i++) {
+    const pageBtn = document.createElement('button');
+    pageBtn.className = 'pagination-btn';
+    if (i === currentPage) {
+      pageBtn.classList.add('active');
+    }
+    pageBtn.textContent = i;
+    pageBtn.onclick = () => goToPage(i);
+    buttonsContainer.appendChild(pageBtn);
+  }
+  
+  if (endPage < totalPages) {
+    if (endPage < totalPages - 1) {
+      const ellipsis = document.createElement('span');
+      ellipsis.className = 'pagination-ellipsis';
+      ellipsis.textContent = '...';
+      buttonsContainer.appendChild(ellipsis);
+    }
+    
+    const lastBtn = document.createElement('button');
+    lastBtn.className = 'pagination-btn';
+    lastBtn.textContent = totalPages;
+    lastBtn.onclick = () => goToPage(totalPages);
+    buttonsContainer.appendChild(lastBtn);
+  }
+  
+  const nextBtn = document.createElement('button');
+  nextBtn.className = 'pagination-btn';
+  nextBtn.textContent = 'Next →';
+  nextBtn.disabled = currentPage === totalPages;
+  nextBtn.onclick = () => goToPage(currentPage + 1);
+  buttonsContainer.appendChild(nextBtn);
+  
+  paginationContainer.appendChild(buttonsContainer);
+}
 
-// Close calendar on overlay click
-document.getElementById('calendarOverlay').addEventListener('click', function() {
-  closeCalendarModal();
-});
+async function goToPage(page) {
+  if (page < 1 || page > totalPages || page === currentPage) return;
+  
+  currentPage = page;
+  await fetchPermissions(page);
+  
+  const tableWrapper = document.querySelector('.table-wrapper');
+  if (tableWrapper) {
+    tableWrapper.scrollIntoView({ behavior: 'smooth', block: 'start' });
+  }
+}
 
 // ========================================
 // DATE FILTERING FUNCTIONS
 // ========================================
-function filterByDate(date) {
-  showLoading();
+async function filterByDate(date) {
   // Format date as YYYY-MM-DD
   const year = date.getFullYear();
   const month = String(date.getMonth() + 1).padStart(2, '0');
   const day = String(date.getDate()).padStart(2, '0');
   const dateStr = `${year}-${month}-${day}`;
-  console.log('Filtering by date:', dateStr, 'and status:', currentFilter);
-  // Filter by date and status (if not 'all')
+  
+  console.log('Filtering by date:', dateStr);
+  
+  // Clear cache and fetch fresh data WITHOUT status filter
+  permissionsCache.clear();
+  const previousFilter = currentFilter;
+  currentFilter = 'all'; // Temporarily set to 'all' to get ALL data
+  currentPage = 1;
+  
+  // Show loading
+  showLoading();
+  
+  // Fetch all permissions WITHOUT auto-display
+  await fetchPermissionsData(1, true);
+  
+  // Restore filter name for display purposes
+  currentFilter = 'date';
+  
+  // Then filter client-side by date
   const filtered = allPermissions.filter(permission => {
-    const isSameDate = permission.permission_date === dateStr;
-    if (currentFilter && currentFilter !== 'all' && currentFilter !== 'date') {
-      return isSameDate && permission.status === currentFilter;
-    }
-    return isSameDate;
+    return permission.permission_date === dateStr;
   });
-  console.log(`Filtered by date ${dateStr} & status ${currentFilter}:`, filtered.length, 'results', filtered);
+  
+  console.log(`Filtered by date ${dateStr}:`, filtered.length, 'results');
+  
+  // Display filtered results (only once!)
   displayPermissions(filtered);
 }
 
-function filterByWeek() {
-  showLoading();
-  
+async function filterByWeek() {
   // Get current week's date range (Sunday to Saturday)
   const today = new Date();
   const dayOfWeek = today.getDay(); // 0 = Sunday, 6 = Saturday
@@ -523,16 +706,30 @@ function filterByWeek() {
   weekEnd.setHours(23, 59, 59, 999);
   
   console.log('Week range:', weekStart.toISOString().split('T')[0], 'to', weekEnd.toISOString().split('T')[0]);
-  console.log('All permissions:', allPermissions);
   
-  // Filter permissions within the week
+  // Clear cache and fetch fresh data WITHOUT status filter
+  permissionsCache.clear();
+  const previousFilter = currentFilter;
+  currentFilter = 'all'; // Temporarily set to 'all' to get ALL data
+  currentPage = 1;
+  
+  // Show loading
+  showLoading();
+  
+  // Fetch all permissions WITHOUT auto-display
+  await fetchPermissionsData(1, true);
+  
+  // Restore filter name for display purposes
+  currentFilter = 'week';
+  
+  // Then filter client-side by week
   const filtered = allPermissions.filter(permission => {
     const permDate = new Date(permission.permission_date + 'T00:00:00');
-    const isInRange = permDate >= weekStart && permDate <= weekEnd;
-    console.log('Date:', permission.permission_date, 'In range?', isInRange);
-    return isInRange;
+    return permDate >= weekStart && permDate <= weekEnd;
   });
   
-  console.log(`Filtered by week:`, filtered.length, 'results', filtered);
+  console.log(`Filtered by week:`, filtered.length, 'results');
+  
+  // Display filtered results (only once!)
   displayPermissions(filtered);
 }
