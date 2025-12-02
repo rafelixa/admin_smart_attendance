@@ -1,11 +1,16 @@
 {
   "version": 2,
-  "buildCommand": "cd frontend && npm install && npm run build",
-  "outputDirectory": "frontend/dist",
   "builds": [
     {
       "src": "backend/server.js",
       "use": "@vercel/node"
+    },
+    {
+      "src": "frontend/package.json",
+      "use": "@vercel/static-build",
+      "config": {
+        "distDir": "dist"
+      }
     }
   ],
   "routes": [
@@ -15,51 +20,55 @@
     },
     {
       "src": "^/$",
-      "dest": "/index.html"
+      "dest": "/frontend/index.html"
     },
     {
       "src": "^/login$",
-      "dest": "/src/pages/login/index.html"
+      "dest": "/frontend/src/pages/login/index.html"
     },
     {
       "src": "^/camera$",
-      "dest": "/src/pages/camera/index.html"
+      "dest": "/frontend/src/pages/camera/index.html"
     },
     {
       "src": "^/request-list$",
-      "dest": "/src/pages/request_list/index.html"
+      "dest": "/frontend/src/pages/request_list/index.html"
     },
     {
       "src": "^/userlist$",
-      "dest": "/src/pages/userlist/index.html"
+      "dest": "/frontend/src/pages/userlist/index.html"
     },
     {
       "src": "^/userlist-manage$",
-      "dest": "/src/pages/userlist_manage/index.html"
+      "dest": "/frontend/src/pages/userlist_manage/index.html"
     },
     {
       "src": "^/request-list-manage/approved$",
-      "dest": "/src/pages/request_list_manage/approved/index.html"
+      "dest": "/frontend/src/pages/request_list_manage/approved/index.html"
     },
     {
       "src": "^/request-list-manage/pending$",
-      "dest": "/src/pages/request_list_manage/pending/index.html"
+      "dest": "/frontend/src/pages/request_list_manage/pending/index.html"
     },
     {
       "src": "^/request-list-manage/rejected$",
-      "dest": "/src/pages/request_list_manage/rejected/index.html"
+      "dest": "/frontend/src/pages/request_list_manage/rejected/index.html"
     },
     {
-      "src": "/assets/(.*)",
-      "dest": "/assets/$1"
+      "src": "/public/(.*)",
+      "dest": "/frontend/public/$1"
+    },
+    {
+      "src": "/src/(.*)",
+      "dest": "/frontend/src/$1"
     },
     {
       "src": "/(.*\\.(js|css|map|json|png|jpg|jpeg|gif|svg|ico|woff|woff2|ttf|eot))",
-      "dest": "/$1"
+      "dest": "/frontend/$1"
     },
     {
       "src": "/(.*)",
-      "dest": "/index.html"
+      "dest": "/frontend/index.html"
     }
   ]
 }
