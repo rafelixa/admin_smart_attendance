@@ -37,7 +37,13 @@
       <main class="content" style="display:none">
         <!-- Detail Container -->
         <section class="detail-container">
-          <h2 class="section-title">Detail</h2>
+          <div class="section-header">
+            <h2 class="section-title">Detail</h2>
+            <button class="btn-add-courses" id="addCoursesBtn">
+              <i class="fas fa-plus"></i>
+              Add Courses
+            </button>
+          </div>
           <div class="detail-grid"><!-- Data will be rendered by JS --></div>
         </section>
 
@@ -69,6 +75,30 @@
           </div>
         </section>
       </main>
+    </div>
+
+    <!-- Enrollment Modal -->
+    <div class="modal-overlay" id="enrollmentModal" style="display: none;">
+      <div class="modal-content">
+        <div class="modal-header">
+          <h3 class="modal-title">Add Courses</h3>
+          <button class="modal-close" id="closeEnrollmentModal">
+            <i class="fas fa-times"></i>
+          </button>
+        </div>
+        <form id="enrollmentForm">
+          <div class="form-section">
+            <p class="form-description">Select or unselect courses. Checked courses will be enrolled, unchecked courses will be removed (soft delete).</p>
+            <div class="courses-grid" id="coursesGrid">
+              <!-- Courses will be rendered by JS -->
+            </div>
+          </div>
+          <div class="modal-footer">
+            <button type="button" class="btn-cancel" id="cancelEnrollment">Cancel</button>
+            <button type="submit" class="btn-submit">Save Changes</button>
+          </div>
+        </form>
+      </div>
     </div>
 
     <script src="/auth.js"></script>

@@ -116,6 +116,9 @@ async function fetchStudentDetail(userId, showLoadingOverlay = false) {
 function displayStudentDetail(data) {
   const { student, courses, tolerance } = data;
 
+  // Update enrolled course IDs for enrollment modal
+  enrolledCourseIds = courses.map(c => c.course_id);
+
   // Render detail info secara dinamis
   const detailGrid = document.querySelector('.detail-grid');
   if (detailGrid) {
@@ -264,6 +267,137 @@ function createAlert(type, title, subtitle, courses) {
 }
 
 // ========================================
+// ENROLLMENT FUNCTIONS
+// ========================================
+let allCourses = [];
+let enrolledCourseIds = [];
+let currentStudentId = null;
+
+// Fetch all available courses
+async function fetchAllCourses() {
+  try {
+    const token = localStorage.getItem('token');
+    const response = await fetch(`${API_URL}/users/courses`, {
+      method: 'GET',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': token ? `Bearer ${token}` : ''
+      }
+    });
+    const data = await response.json();
+    
+    if (data.success) {
+      allCourses = data.data;
+    } else {
+      console.error('Failed to fetch courses:', data.message);
+    }
+  } catch (error) {
+    console.error('Error fetching courses:', error);
+  }
+}
+
+// Show enrollment modal
+function showEnrollmentModal() {
+  const modal = document.getElementById('enrollmentModal');
+  const coursesGrid = document.getElementById('coursesGrid');
+  
+  if (!modal || !coursesGrid) return;
+  
+  // Clear previous content
+  coursesGrid.innerHTML = '';
+  
+  // Render courses with checkboxes (all courses are enabled, enrolled ones are pre-checked)
+  allCourses.forEach(course => {
+    const isEnrolled = enrolledCourseIds.includes(course.course_id);
+    const item = document.createElement('div');
+    item.className = `course-checkbox-item ${isEnrolled ? 'checked' : ''}`;
+    
+    item.innerHTML = `
+      <input 
+        type="checkbox" 
+        id="course_${course.course_id}" 
+        value="${course.course_id}"
+        ${isEnrolled ? 'checked' : ''}
+      />
+      <label class="course-checkbox-label" for="course_${course.course_id}">
+        <div class="course-code">${course.course_code}</div>
+        <div class="course-name">${course.course_name}</div>
+      </label>
+    `;
+    
+    // Toggle checked class on click
+    const checkbox = item.querySelector('input[type="checkbox"]');
+    item.addEventListener('click', (e) => {
+      if (e.target.tagName !== 'INPUT') {
+        checkbox.checked = !checkbox.checked;
+      }
+      item.classList.toggle('checked', checkbox.checked);
+    });
+    
+    coursesGrid.appendChild(item);
+  });
+  
+  modal.style.display = 'flex';
+}
+
+// Hide enrollment modal
+function hideEnrollmentModal() {
+  const modal = document.getElementById('enrollmentModal');
+  if (modal) {
+    modal.style.display = 'none';
+  }
+  
+  // Reset form
+  const form = document.getElementById('enrollmentForm');
+  if (form) {
+    form.reset();
+  }
+  
+  // Remove checked classes
+  document.querySelectorAll('.course-checkbox-item.checked').forEach(item => {
+    item.classList.remove('checked');
+  });
+}
+
+// Handle enrollment form submission
+async function handleEnrollment(event) {
+  event.preventDefault();
+  
+  // Get all checked course IDs (including newly selected and previously enrolled)
+  const checkboxes = document.querySelectorAll('#coursesGrid input[type="checkbox"]:checked');
+  const selectedCourseIds = Array.from(checkboxes).map(cb => parseInt(cb.value, 10));
+  
+  try {
+    const token = localStorage.getItem('token');
+    const response = await fetch(`${API_URL}/users/enrollments`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': token ? `Bearer ${token}` : ''
+      },
+      body: JSON.stringify({
+        user_id: currentStudentId,
+        course_ids: selectedCourseIds
+      })
+    });
+    
+    const data = await response.json();
+    
+    if (data.success) {
+      hideEnrollmentModal();
+      // Refresh student detail in background without loading overlay
+      fetchStudentDetail(currentStudentId, false);
+      alert(data.message);
+    } else {
+      alert('Failed to update enrollments: ' + data.message);
+    }
+  } catch (error) {
+    console.error('Error updating enrollments:', error);
+    alert('Connection error. Please try again.');
+  }
+}
+
+// ========================================
 // INITIALIZE PAGE
 // ========================================
   document.addEventListener('DOMContentLoaded', async function () {
@@ -282,10 +416,49 @@ function createAlert(type, title, subtitle, courses) {
     window.location.href = '/userlist';
     return;
   }
+  
+  currentStudentId = userId;
+  
+  // Fetch all courses for enrollment
+  await fetchAllCourses();
+  
   // Fetch student detail (loading overlay already shown)
   fetchStudentDetail(userId, true);
+  
   // Auto-refresh every 30 seconds (without loading overlay)
   setInterval(() => {
     fetchStudentDetail(userId, false);
   }, 30000);
+  
+  // Setup enrollment modal handlers
+  const addCoursesBtn = document.getElementById('addCoursesBtn');
+  const closeModalBtn = document.getElementById('closeEnrollmentModal');
+  const cancelBtn = document.getElementById('cancelEnrollment');
+  const enrollmentForm = document.getElementById('enrollmentForm');
+  
+  if (addCoursesBtn) {
+    addCoursesBtn.addEventListener('click', showEnrollmentModal);
+  }
+  
+  if (closeModalBtn) {
+    closeModalBtn.addEventListener('click', hideEnrollmentModal);
+  }
+  
+  if (cancelBtn) {
+    cancelBtn.addEventListener('click', hideEnrollmentModal);
+  }
+  
+  if (enrollmentForm) {
+    enrollmentForm.addEventListener('submit', handleEnrollment);
+  }
+  
+  // Close modal when clicking outside
+  const modal = document.getElementById('enrollmentModal');
+  if (modal) {
+    modal.addEventListener('click', (e) => {
+      if (e.target === modal) {
+        hideEnrollmentModal();
+      }
+    });
+  }
 });

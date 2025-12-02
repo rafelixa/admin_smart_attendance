@@ -4,6 +4,23 @@
 
 const API_URL = window.APP_CONFIG ? window.APP_CONFIG.API_URL : '/api';
 
+// Immediately check auth on script load (before any page renders)
+(function() {
+  const currentPath = window.location.pathname;
+  const publicPaths = ['/login', '/login/', '/'];
+  const isPublicPath = publicPaths.some(path => currentPath === path || currentPath.startsWith(path));
+  
+  if (!isPublicPath) {
+    const token = localStorage.getItem('token');
+    if (!token) {
+      // No token - immediately redirect before page renders
+      window.location.href = '/login';
+      // Block further script execution
+      throw new Error('Authentication required');
+    }
+  }
+})();
+
 // Check if user is authenticated (token exists and valid)
 async function checkAuth() {
   const token = localStorage.getItem('token');

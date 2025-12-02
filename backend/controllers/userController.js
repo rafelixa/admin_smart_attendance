@@ -30,11 +30,12 @@ const getAllStudents = async (req, res) => {
     // Batch fetch tolerance info for all students to avoid N+1 problem
     const userIds = students.map(s => s.user_id);
     
-    // Get all enrollments for these students in one query
+    // Get all enrollments for these students in one query (only active enrollments)
     const { data: enrollments } = await supabase
       .from('enrollments')
       .select('user_id, enrollment_id')
-      .in('user_id', userIds);
+      .in('user_id', userIds)
+      .eq('is_deleted', false);
     
     // Get all attendance records for these enrollments in one query
     const enrollmentIds = (enrollments || []).map(e => e.enrollment_id);
@@ -162,7 +163,8 @@ const getStudentDetail = async (req, res) => {
           course_name
         )
       `)
-      .eq('user_id', userId);
+      .eq('user_id', userId)
+      .eq('is_deleted', false);
 
     if (enrollError) {
       console.error('Error fetching enrollments:', enrollError);
@@ -261,7 +263,392 @@ const getStudentDetail = async (req, res) => {
   }
 };
 
+// Create new student
+const createStudent = async (req, res) => {
+  try {
+    const { full_name, nim, email, password } = req.body;
+
+    // Validation
+    if (!full_name || !nim || !email || !password) {
+      return res.status(400).json({
+        success: false,
+        message: 'All fields are required: full_name, nim, email, password'
+      });
+    }
+
+    // Validate NIM format: minimum 11 digits, only numbers
+    const nimRegex = /^[0-9]{11,}$/;
+    if (!nimRegex.test(nim)) {
+      return res.status(400).json({
+        success: false,
+        message: 'NIM must be at least 11 digits and contain only numbers'
+      });
+    }
+
+    // Validate email format
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    if (!emailRegex.test(email)) {
+      return res.status(400).json({
+        success: false,
+        message: 'Invalid email format'
+      });
+    }
+
+    // Check if NIM already exists
+    const { data: existingNim } = await supabase
+      .from('users')
+      .select('nim')
+      .eq('nim', nim)
+      .maybeSingle();
+
+    if (existingNim) {
+      return res.status(409).json({
+        success: false,
+        message: 'NIM already exists'
+      });
+    }
+
+    // Check if email already exists
+    const { data: existingEmail } = await supabase
+      .from('users')
+      .select('email')
+      .eq('email', email)
+      .maybeSingle();
+
+    if (existingEmail) {
+      return res.status(409).json({
+        success: false,
+        message: 'Email already exists'
+      });
+    }
+
+    // Hash password using SHA-256 (same as mobile app)
+    const crypto = require('crypto');
+    const password_hash = crypto.createHash('sha256').update(password).digest('hex');
+
+    // Use NIM as user_id (consistent with existing users)
+    const user_id = nim;
+
+    // Insert new student
+    const { data: newStudent, error } = await supabase
+      .from('users')
+      .insert({
+        user_id,
+        full_name,
+        nim,
+        email,
+        password_hash,
+        role: 'student'
+      })
+      .select()
+      .single();
+
+    if (error) {
+      console.error('Error creating student:', error);
+      return res.status(500).json({
+        success: false,
+        message: 'Failed to create student',
+        error: error.message
+      });
+    }
+
+    // Remove password_hash from response
+    const { password_hash: _, ...studentData } = newStudent;
+
+    return res.status(201).json({
+      success: true,
+      message: 'Student created successfully',
+      data: studentData
+    });
+
+  } catch (error) {
+    console.error('Create student error:', error);
+    return res.status(500).json({
+      success: false,
+      message: 'Server error',
+      error: error.message
+    });
+  }
+};
+
+// Soft delete student (hide from display, don't delete from database)
+const deleteStudent = async (req, res) => {
+  try {
+    const { userId } = req.params;
+
+    // Check if user exists and is a student
+    const { data: student, error: fetchError } = await supabase
+      .from('users')
+      .select('user_id, role, full_name')
+      .eq('user_id', userId)
+      .maybeSingle();
+
+    if (fetchError) {
+      console.error('Error fetching student for delete:', fetchError);
+      return res.status(500).json({
+        success: false,
+        message: 'Database error',
+        error: fetchError.message
+      });
+    }
+
+    if (!student) {
+      console.error('Student not found with user_id:', userId);
+      return res.status(404).json({
+        success: false,
+        message: 'Student not found'
+      });
+    }
+
+    if (student.role !== 'student') {
+      return res.status(400).json({
+        success: false,
+        message: 'Can only delete students, current role: ' + student.role
+      });
+    }
+
+    // Soft delete: Add is_deleted column flag
+    // Since schema doesn't have is_deleted, we'll use a workaround:
+    // Update role to 'deleted_student' to hide from listing
+    const { error: updateError } = await supabase
+      .from('users')
+      .update({
+        role: 'deleted_student',
+        updated_at: new Date().toISOString()
+      })
+      .eq('user_id', userId);
+
+    if (updateError) {
+      console.error('Error soft deleting student:', updateError);
+      return res.status(500).json({
+        success: false,
+        message: 'Failed to delete student',
+        error: updateError.message
+      });
+    }
+
+    return res.status(200).json({
+      success: true,
+      message: `Student ${student.full_name} has been removed from the system`,
+      data: {
+        user_id: userId,
+        full_name: student.full_name
+      }
+    });
+
+  } catch (error) {
+    console.error('Delete student error:', error);
+    return res.status(500).json({
+      success: false,
+      message: 'Server error',
+      error: error.message
+    });
+  }
+};
+
+// Get all courses
+const getAllCourses = async (req, res) => {
+  try {
+    const { data: courses, error } = await supabase
+      .from('courses')
+      .select('course_id, course_code, course_name')
+      .order('course_code', { ascending: true });
+
+    if (error) {
+      console.error('Error fetching courses:', error);
+      return res.status(500).json({
+        success: false,
+        message: 'Failed to fetch courses'
+      });
+    }
+
+    return res.status(200).json({
+      success: true,
+      data: courses
+    });
+
+  } catch (error) {
+    console.error('Get courses error:', error);
+    return res.status(500).json({
+      success: false,
+      message: 'Server error',
+      error: error.message
+    });
+  }
+};
+
+// Manage enrollments for student (create, restore, or soft delete)
+const createEnrollments = async (req, res) => {
+  try {
+    const { user_id, course_ids } = req.body;
+
+    // Validate input
+    if (!user_id || !course_ids || !Array.isArray(course_ids)) {
+      return res.status(400).json({
+        success: false,
+        message: 'User ID and course IDs array are required'
+      });
+    }
+
+    // Check if user exists and is a student
+    const { data: user, error: userError } = await supabase
+      .from('users')
+      .select('user_id, full_name, role')
+      .eq('user_id', user_id)
+      .single();
+
+    if (userError || !user) {
+      return res.status(404).json({
+        success: false,
+        message: 'User not found'
+      });
+    }
+
+    if (user.role !== 'student') {
+      return res.status(400).json({
+        success: false,
+        message: 'Can only enroll students'
+      });
+    }
+
+    // Ensure course_ids are integers
+    const courseIdsInt = course_ids.map(id => parseInt(id, 10));
+
+    // Get ALL existing enrollments (including soft deleted ones)
+    const { data: allEnrollments } = await supabase
+      .from('enrollments')
+      .select('enrollment_id, course_id, is_deleted')
+      .eq('user_id', user_id);
+
+    // Create Set for fast lookup of selected courses
+    const selectedCourseSet = new Set(courseIdsInt);
+    
+    const existingMap = new Map();
+    (allEnrollments || []).forEach(e => {
+      existingMap.set(e.course_id, { enrollment_id: e.enrollment_id, is_deleted: e.is_deleted });
+    });
+
+    // Determine which courses need to be added/restored and which to soft delete
+    const toCreate = [];  // Truly new enrollments
+    const toRestore = []; // Soft deleted enrollments to restore
+    const toSoftDelete = [];
+
+    // Check selected course_ids
+    courseIdsInt.forEach(course_id => {
+      const existing = existingMap.get(course_id);
+      if (!existing) {
+        // New enrollment - need to create
+        toCreate.push(course_id);
+      } else if (existing.is_deleted) {
+        // Was soft deleted - need to restore
+        toRestore.push(existing.enrollment_id);
+      }
+      // If exists and not deleted, do nothing (already enrolled)
+    });
+
+    // Courses not in course_ids but exist and not deleted = soft delete
+    allEnrollments?.forEach(e => {
+      if (!selectedCourseSet.has(e.course_id) && !e.is_deleted) {
+        toSoftDelete.push(e.enrollment_id);
+      }
+    });
+
+    let addedCount = 0;
+    let deletedCount = 0;
+
+    // Create new enrollments
+    if (toCreate.length > 0) {
+      const enrollmentsToCreate = toCreate.map(course_id => ({
+        user_id,
+        course_id,
+        is_deleted: false,
+        enrolled_at: new Date().toISOString()
+      }));
+
+      const { error: insertError } = await supabase
+        .from('enrollments')
+        .insert(enrollmentsToCreate);
+
+      if (insertError) {
+        console.error('Error creating enrollments:', insertError);
+        return res.status(500).json({
+          success: false,
+          message: 'Failed to create enrollments',
+          error: insertError.message
+        });
+      }
+      addedCount += toCreate.length;
+    }
+
+    // Restore soft deleted enrollments
+    if (toRestore.length > 0) {
+      const { error: restoreError } = await supabase
+        .from('enrollments')
+        .update({ is_deleted: false })
+        .in('enrollment_id', toRestore);
+
+      if (restoreError) {
+        console.error('Error restoring enrollments:', restoreError);
+        return res.status(500).json({
+          success: false,
+          message: 'Failed to restore enrollments',
+          error: restoreError.message
+        });
+      }
+      addedCount += toRestore.length;
+    }
+
+    // Soft delete unchecked enrollments
+    if (toSoftDelete.length > 0) {
+      const { error: deleteError } = await supabase
+        .from('enrollments')
+        .update({ is_deleted: true })
+        .in('enrollment_id', toSoftDelete);
+
+      if (deleteError) {
+        console.error('Error soft deleting enrollments:', deleteError);
+        return res.status(500).json({
+          success: false,
+          message: 'Failed to remove enrollments',
+          error: deleteError.message
+        });
+      }
+      deletedCount = toSoftDelete.length;
+    }
+
+    const operations = [];
+    if (addedCount > 0) operations.push(`added ${addedCount}`);
+    if (deletedCount > 0) operations.push(`removed ${deletedCount}`);
+
+    const message = operations.length > 0
+      ? `Successfully ${operations.join(', ')} course(s) for ${user.full_name}`
+      : `No changes made for ${user.full_name}`;
+
+    return res.status(200).json({
+      success: true,
+      message,
+      data: {
+        user_id,
+        added: addedCount,
+        deleted: deletedCount
+      }
+    });
+
+  } catch (error) {
+    console.error('Manage enrollments error:', error);
+    return res.status(500).json({
+      success: false,
+      message: 'Server error',
+      error: error.message
+    });
+  }
+};
+
 module.exports = {
   getAllStudents,
-  getStudentDetail
+  getStudentDetail,
+  createStudent,
+  deleteStudent,
+  getAllCourses,
+  createEnrollments
 };

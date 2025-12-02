@@ -206,25 +206,39 @@ function displayStudents(students) {
     const row = document.createElement('div');
     // Alternate row classes
     row.className = index % 2 === 0 ? 'frame-4' : 'frame-6';
-    row.style.cursor = 'pointer';
 
     row.innerHTML = `
-      <div class="frame-5"><div class="text-wrapper-3">${student.nim || '-'}</div></div>
-      <div class="frame-5"><div class="text-wrapper-3">${student.full_name}</div></div>
+      <div class="frame-5" style="cursor: pointer;"><div class="text-wrapper-3">${student.nim || '-'}</div></div>
+      <div class="frame-5" style="cursor: pointer;"><div class="text-wrapper-3">${student.full_name}</div></div>
+      <div class="action-buttons">
+        <button class="btn-delete" data-user-id="${student.user_id}" data-user-name="${student.full_name}">
+          <i class="fas fa-trash"></i> Delete
+        </button>
+      </div>
     `;
 
-    // Click to view detail
-    row.addEventListener('click', () => {
-      window.location.href = `/userlist-manage?id=${student.user_id}`;
+    // Click to view detail (only on nim and name cells)
+    const clickableCells = row.querySelectorAll('.frame-5');
+    clickableCells.forEach(cell => {
+      cell.addEventListener('click', () => {
+        window.location.href = `/userlist-manage?id=${student.user_id}`;
+      });
+
+      // Hover effects
+      cell.addEventListener('mouseenter', () => {
+        row.style.backgroundColor = '#f8f9fa';
+      });
+
+      cell.addEventListener('mouseleave', () => {
+        row.style.backgroundColor = '';
+      });
     });
 
-    // Hover effects
-    row.addEventListener('mouseenter', () => {
-      row.style.backgroundColor = '#f8f9fa';
-    });
-
-    row.addEventListener('mouseleave', () => {
-      row.style.backgroundColor = '';
+    // Delete button handler
+    const deleteBtn = row.querySelector('.btn-delete');
+    deleteBtn.addEventListener('click', (e) => {
+      e.stopPropagation(); // Prevent row click
+      handleDeleteStudent(student.user_id, student.full_name);
     });
 
     fragment.appendChild(row);
@@ -444,6 +458,166 @@ document.addEventListener('DOMContentLoaded', async function () {
     });
   });
 
+  // Create User Modal handlers
+  const createUserBtn = document.getElementById('createUserBtn');
+  const createModal = document.getElementById('createModal');
+  const closeCreateModal = document.getElementById('closeCreateModal');
+  const cancelCreate = document.getElementById('cancelCreate');
+  const createStudentForm = document.getElementById('createStudentForm');
+
+  if (createUserBtn) {
+    createUserBtn.addEventListener('click', () => {
+      createModal.classList.add('active');
+    });
+  }
+
+  if (closeCreateModal) {
+    closeCreateModal.addEventListener('click', () => {
+      createModal.classList.remove('active');
+      createStudentForm.reset();
+    });
+  }
+
+  if (cancelCreate) {
+    cancelCreate.addEventListener('click', () => {
+      createModal.classList.remove('active');
+      createStudentForm.reset();
+    });
+  }
+
+  // Close modal on overlay click
+  if (createModal) {
+    createModal.addEventListener('click', (e) => {
+      if (e.target === createModal) {
+        createModal.classList.remove('active');
+        createStudentForm.reset();
+      }
+    });
+  }
+
+  // Handle form submission
+  if (createStudentForm) {
+    createStudentForm.addEventListener('submit', handleCreateStudent);
+  }
+
+  // NIM input validation - only allow numbers
+  const nimInput = document.getElementById('nim');
+  if (nimInput) {
+    nimInput.addEventListener('input', (e) => {
+      // Remove any non-numeric characters
+      e.target.value = e.target.value.replace(/[^0-9]/g, '');
+    });
+
+    nimInput.addEventListener('keypress', (e) => {
+      // Prevent non-numeric key presses
+      const charCode = e.which || e.keyCode;
+      if (charCode < 48 || charCode > 57) {
+        e.preventDefault();
+      }
+    });
+
+    nimInput.addEventListener('paste', (e) => {
+      // Handle paste event
+      e.preventDefault();
+      const pastedText = (e.clipboardData || window.clipboardData).getData('text');
+      const numbersOnly = pastedText.replace(/[^0-9]/g, '');
+      document.execCommand('insertText', false, numbersOnly);
+    });
+  }
+
   // Fetch students awal (hanya sekali saat load)
   fetchStudents();
 });
+
+// ========================================
+// CREATE STUDENT HANDLER
+// ========================================
+async function handleCreateStudent(e) {
+  e.preventDefault();
+  
+  const submitBtn = e.target.querySelector('.btn-submit');
+  const originalText = submitBtn.textContent;
+  submitBtn.disabled = true;
+  submitBtn.textContent = 'Creating...';
+
+  const formData = new FormData(e.target);
+  const studentData = {
+    full_name: formData.get('full_name'),
+    nim: formData.get('nim'),
+    email: formData.get('email'),
+    password: formData.get('password')
+  };
+
+  try {
+    const token = localStorage.getItem('token');
+    const response = await fetch(`${API_URL}/users/students`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${token}`
+      },
+      body: JSON.stringify(studentData)
+    });
+
+    const result = await response.json();
+
+    if (!result.success) {
+      alert(`Error: ${result.message}`);
+      submitBtn.disabled = false;
+      submitBtn.textContent = originalText;
+      return;
+    }
+
+    alert(`Student ${studentData.full_name} created successfully!`);
+    document.getElementById('createModal').classList.remove('active');
+    e.target.reset();
+    
+    // Refresh student list
+    studentsCache.clear();
+    await fetchStudentsWithTolerance(currentFilter, currentPage);
+
+  } catch (error) {
+    console.error('Error creating student:', error);
+    alert('Failed to create student. Please try again.');
+  } finally {
+    submitBtn.disabled = false;
+    submitBtn.textContent = originalText;
+  }
+}
+
+// ========================================
+// DELETE STUDENT HANDLER
+// ========================================
+async function handleDeleteStudent(userId, userName) {
+  const confirmDelete = confirm(`Are you sure you want to delete student "${userName}"?\n\nThis will hide the student from the system but data will be preserved in the database.`);
+  
+  if (!confirmDelete) return;
+
+  try {
+    const token = localStorage.getItem('token');
+    const response = await fetch(`${API_URL}/users/students/${userId}`, {
+      method: 'DELETE',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${token}`
+      }
+    });
+
+    const result = await response.json();
+
+    if (!result.success) {
+      alert(`Error: ${result.message}`);
+      return;
+    }
+
+    alert(`Student ${userName} has been removed from the system.`);
+    
+    // Refresh student list
+    studentsCache.clear();
+    await fetchStudentsWithTolerance(currentFilter, currentPage);
+
+  } catch (error) {
+    console.error('Error deleting student:', error);
+    alert('Failed to delete student. Please try again.');
+  }
+}
