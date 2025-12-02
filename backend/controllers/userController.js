@@ -185,6 +185,22 @@ const getStudentDetail = async (req, res) => {
       console.error('Error fetching attendances:', attError);
     }
 
+    // Fetch approved permissions for Sick and Excused count
+    const { data: allPermissions, error: permError } = await supabase
+      .from('permissions')
+      .select('enrollment_id, reason, status')
+      .in('enrollment_id', enrollmentIds)
+      .eq('status', 'approved');
+
+    if (permError) {
+      console.error('Error fetching permissions:', permError);
+    }
+
+    console.log('=== DEBUG: Approved Permissions ===');
+    console.log('Enrollment IDs:', enrollmentIds);
+    console.log('Approved Permissions:', allPermissions);
+    console.log('===================================');
+
     // Group attendances by enrollment_id
     const attendancesByEnrollment = {};
     (allAttendances || []).forEach(att => {
@@ -194,17 +210,46 @@ const getStudentDetail = async (req, res) => {
       attendancesByEnrollment[att.enrollment_id].push(att);
     });
 
+    // Group permissions by enrollment_id
+    const permissionsByEnrollment = {};
+    (allPermissions || []).forEach(perm => {
+      if (!permissionsByEnrollment[perm.enrollment_id]) {
+        permissionsByEnrollment[perm.enrollment_id] = [];
+      }
+      permissionsByEnrollment[perm.enrollment_id].push(perm);
+    });
+
     // Build courses with attendance data
     const coursesWithAttendance = enrollments.map(enrollment => {
       const attendances = attendancesByEnrollment[enrollment.enrollment_id] || [];
+      const permissions = permissionsByEnrollment[enrollment.enrollment_id] || [];
       const attendanceCount = { present: 0, late: 0, absent: 0, sick: 0, excused: 0, total: 0 };
 
+      // Count Present, Late, Absent from attendances table
       attendances.forEach(att => {
         const status = att.status.toLowerCase();
-        if (attendanceCount.hasOwnProperty(status)) {
+        if (status === 'present' || status === 'late' || status === 'absent') {
           attendanceCount[status]++;
+          attendanceCount.total++;
         }
-        attendanceCount.total++;
+      });
+
+      // Count Sick and Excused from approved permissions
+      permissions.forEach(perm => {
+        const reason = (perm.reason || '').toLowerCase().trim();
+        console.log(`Processing permission - Enrollment: ${enrollment.enrollment_id}, Reason: "${reason}"`);
+        
+        if (reason === 'sick' || reason === 'medical appointment') {
+          attendanceCount.sick++;
+          attendanceCount.total++;
+          console.log(`  → Counted as SICK (total sick: ${attendanceCount.sick})`);
+        } else if (reason === 'family emergency' || reason === 'personal matter' || reason === 'other') {
+          attendanceCount.excused++;
+          attendanceCount.total++;
+          console.log(`  → Counted as EXCUSED (total excused: ${attendanceCount.excused})`);
+        } else {
+          console.log(`  → Reason not matched, skipped`);
+        }
       });
 
       return {
