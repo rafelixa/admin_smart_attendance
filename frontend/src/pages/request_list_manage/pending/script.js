@@ -192,10 +192,12 @@ function updateClassInfo(label, value) {
 // ========================================
 async function updatePermissionStatus(permissionId, status, adminId) {
   try {
+    const token = localStorage.getItem('token');
     const response = await fetch(`${API_URL}/permissions/${permissionId}/status`, {
       method: 'PATCH',
       headers: {
-        'Content-Type': 'application/json'
+        'Content-Type': 'application/json',
+        'Authorization': token ? `Bearer ${token}` : ''
       },
       body: JSON.stringify({
         status: status,
