@@ -87,7 +87,25 @@ const API_URL = window.APP_CONFIG ? window.APP_CONFIG.API_URL : '/api';
 // ========================================
 async function fetchStudentsWithTolerance(filter = 'all', page = 1) {
   try {
-    showLoading();
+    const cacheKey = `${String(filter).toLowerCase()}:${page}`;
+    
+    // Serve cached data immediately if available
+    const hasCache = studentsCache.has(cacheKey);
+    if (hasCache) {
+      const cached = studentsCache.get(cacheKey);
+      allStudentsData = cached.students;
+      currentPage = cached.page;
+      totalPages = cached.totalPages;
+      totalRecords = cached.total;
+      displayStudents(allStudentsData);
+      updatePagination();
+      // Skip fetch if cache is fresh (< 10 seconds)
+      if (cached.timestamp && Date.now() - cached.timestamp < 10000) {
+        return;
+      }
+    } else {
+      showLoading();
+    }
 
     // Cancel any in-flight request to avoid overlap on rapid pagination
     if (abortController) abortController.abort();
@@ -99,19 +117,6 @@ async function fetchStudentsWithTolerance(filter = 'all', page = 1) {
     // Add filter parameter to request
     if (filter && filter !== 'all') {
       params.append('filter', filter);
-    }
-
-    // Serve cached data immediately if available
-    const cacheKey = `${String(filter).toLowerCase()}:${page}`;
-    if (studentsCache.has(cacheKey)) {
-      const cached = studentsCache.get(cacheKey);
-      allStudentsData = cached.students;
-      currentPage = cached.page;
-      totalPages = cached.totalPages;
-      totalRecords = cached.total;
-      displayStudents(allStudentsData);
-      updatePagination();
-      // continue to refresh in background
     }
 
     const response = await fetch(`${API_URL}/users/students?${params.toString()}`, {
@@ -138,12 +143,13 @@ async function fetchStudentsWithTolerance(filter = 'all', page = 1) {
 
     allStudentsData = students; // already includes tolerance
 
-    // Cache fresh
+    // Cache fresh with timestamp
     studentsCache.set(cacheKey, {
       students,
       page: currentPage,
       totalPages,
-      total: totalRecords
+      total: totalRecords,
+      timestamp: Date.now()
     });
 
     // Display all students (don't apply client-side filter, data is already filtered from server if needed)
@@ -419,15 +425,6 @@ function showError(message) {
 // FILTER OPTION EVENT LISTENER
 // ========================================
 document.addEventListener('DOMContentLoaded', async function () {
-  // Show loading ASAP to avoid empty table flash
-  showLoading();
-  // Proteksi: cek session via backend JWT
-  if (!(await window.checkAuth?.())) {
-    document.body.innerHTML = '';
-    window.location.href = '/login';
-    return;
-  }
-
   // Set filter default aktif
   const defaultFilter = document.querySelector('.filter-option[data-filter="all"]');
   if (defaultFilter) defaultFilter.classList.add('active');
@@ -525,8 +522,16 @@ document.addEventListener('DOMContentLoaded', async function () {
     });
   }
 
-  // Fetch students awal (hanya sekali saat load)
+  // Fetch students awal (hanya sekali saat load) - loading akan muncul di dalam fetch jika perlu
   fetchStudents();
+  
+  // Auth check non-blocking (background)
+  window.checkAuth?.().then(isAuth => {
+    if (!isAuth) {
+      document.body.innerHTML = '';
+      window.location.href = '/login';
+    }
+  });
 });
 
 // ========================================

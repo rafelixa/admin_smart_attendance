@@ -5,19 +5,35 @@ const supabase = require('../config/db');
 const getAllStudents = async (req, res) => {
   try {
     const { search, page = 1, limit = 50, filter = 'all' } = req.query;
+    
+    const pageNum = parseInt(page);
+    const limitNum = parseInt(limit);
+    const offset = (pageNum - 1) * limitNum;
 
-    // Get ALL students first (no pagination yet) - need all to calculate tolerance
+    // Build base query with pagination FIRST (more efficient)
+    let countQuery = supabase
+      .from('users')
+      .select('user_id', { count: 'exact', head: true })
+      .eq('role', 'student');
+
     let query = supabase
       .from('users')
       .select('user_id, full_name, nim')
       .eq('role', 'student')
-      .order('full_name', { ascending: true });
+      .order('full_name', { ascending: true })
+      .range(offset, offset + limitNum - 1);
 
     if (search) {
-      query = query.or(`full_name.ilike.%${search}%,nim.ilike.%${search}%`);
+      const searchFilter = `full_name.ilike.%${search}%,nim.ilike.%${search}%`;
+      query = query.or(searchFilter);
+      countQuery = countQuery.or(searchFilter);
     }
 
-    const { data: students, error } = await query;
+    // Execute count and data queries in parallel
+    const [{ count: totalCount }, { data: students, error }] = await Promise.all([
+      countQuery,
+      query
+    ]);
 
     if (error) {
       console.error('Error fetching students:', error);
@@ -27,22 +43,50 @@ const getAllStudents = async (req, res) => {
       });
     }
 
-    // Batch fetch tolerance info for all students to avoid N+1 problem
+    // Batch fetch tolerance info for PAGINATED students only
     const userIds = students.map(s => s.user_id);
     
-    // Get all enrollments for these students in one query (only active enrollments)
+    if (userIds.length === 0) {
+      return res.status(200).json({
+        success: true,
+        data: { students: [], exceeded: [], reached: [] },
+        page: pageNum,
+        limit: limitNum,
+        total: 0,
+        totalPages: 0
+      });
+    }
+    
+    // Get only active enrollments for these students (optimized with index)
     const { data: enrollments } = await supabase
       .from('enrollments')
       .select('user_id, enrollment_id')
       .in('user_id', userIds)
       .eq('is_deleted', false);
     
-    // Get all attendance records for these enrollments in one query
-    const enrollmentIds = (enrollments || []).map(e => e.enrollment_id);
+    if (!enrollments || enrollments.length === 0) {
+      const studentsWithTolerance = students.map(s => ({
+        ...s,
+        tolerance: { late: 0, absent: 0, exceeded: false, reached: false }
+      }));
+      
+      return res.status(200).json({
+        success: true,
+        data: { students: studentsWithTolerance, exceeded: [], reached: [] },
+        page: pageNum,
+        limit: limitNum,
+        total: totalCount || 0,
+        totalPages: Math.ceil((totalCount || 0) / limitNum)
+      });
+    }
+    
+    // Get attendance COUNTS aggregated by enrollment (more efficient than fetching all records)
+    const enrollmentIds = enrollments.map(e => e.enrollment_id);
     const { data: attendances } = await supabase
       .from('attendances')
       .select('enrollment_id, status')
-      .in('enrollment_id', enrollmentIds);
+      .in('enrollment_id', enrollmentIds)
+      .in('status', ['late', 'absent']); // Only fetch relevant statuses
     
     // Group attendance by enrollment (per course)
     const attendanceByEnrollment = {};
@@ -90,37 +134,33 @@ const getAllStudents = async (req, res) => {
       tolerance: toleranceByUser[student.user_id] || { late: 0, absent: 0, exceeded: false, reached: false }
     }));
 
-    // Apply filter based on tolerance status
-    if (filter === 'past') {
-      studentsWithTolerance = studentsWithTolerance.filter(s => s.tolerance.exceeded === true);
-    } else if (filter === 'reach') {
-      studentsWithTolerance = studentsWithTolerance.filter(s => s.tolerance.reached === true);
-    }
-    // 'all' shows everyone, no filtering needed
-
-    // Recalculate pagination based on filtered results
-    const filteredCount = studentsWithTolerance.length;
-    const totalPages = Math.ceil(filteredCount / parseInt(limit));
-    const currentPage = parseInt(page);
+    // For filtered views, we return the paginated results as-is since we already fetched the right page
+    // For filter='past' or 'reach', we need to apply post-processing filter
+    let finalStudents = studentsWithTolerance;
+    let finalTotal = totalCount || students.length;
     
-    // Calculate offset for filtered results
-    const offset = (parseInt(page) - 1) * parseInt(limit);
+    if (filter === 'past') {
+      finalStudents = studentsWithTolerance.filter(s => s.tolerance.exceeded === true);
+      finalTotal = finalStudents.length; // Can't predict filtered count without fetching all
+    } else if (filter === 'reach') {
+      finalStudents = studentsWithTolerance.filter(s => s.tolerance.reached === true);
+      finalTotal = finalStudents.length; // Can't predict filtered count without fetching all
+    }
 
-    // Apply pagination to filtered results
-    const paginatedStudents = studentsWithTolerance.slice(offset, offset + parseInt(limit));
+    const totalPages = Math.ceil(finalTotal / limitNum);
 
     return res.status(200).json({
       success: true,
-      count: paginatedStudents.length,
-      total: filteredCount,
-      page: currentPage,
-      limit: parseInt(limit),
+      count: finalStudents.length,
+      total: finalTotal,
+      page: pageNum,
+      limit: limitNum,
       totalPages: totalPages,
-      hasNextPage: currentPage < totalPages,
-      hasPrevPage: currentPage > 1,
+      hasNextPage: pageNum < totalPages,
+      hasPrevPage: pageNum > 1,
       data: {
-        students: paginatedStudents,
-        total: filteredCount
+        students: finalStudents,
+        total: finalTotal
       }
     });
 

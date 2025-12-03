@@ -154,8 +154,26 @@ const logsCache = new Map(); // key: `${currentFilter}:${selectedDateFilter || '
 // ========================================
 async function fetchAttendanceLogs(status = 'all', page = 1) {
   try {
-    // Show skeleton loading immediately
-    showSkeletonLoading();
+    const cacheKey = `${status}:${selectedDateFilter || ''}:${page}`;
+    
+    // Serve cached results instantly if available (no skeleton)
+    const hasCache = logsCache.has(cacheKey);
+    if (hasCache) {
+      const cached = logsCache.get(cacheKey);
+      allLogs = cached.data;
+      currentPage = cached.page;
+      totalPages = cached.totalPages;
+      totalRecords = cached.total;
+      displayLogs(allLogs);
+      updatePagination();
+      // Skip fetch if cache is fresh (< 10 seconds old)
+      if (cached.timestamp && Date.now() - cached.timestamp < 10000) {
+        return;
+      }
+    } else {
+      // Only show skeleton if no cache
+      showSkeletonLoading();
+    }
 
     // Cancel any in-flight request to avoid overlap
     if (abortController) abortController.abort();
@@ -171,39 +189,32 @@ async function fetchAttendanceLogs(status = 'all', page = 1) {
     }
     
     const url = `${API_URL}/attendance/logs?${params.toString()}`;
-
-    // Serve cached results instantly if available
-    const cacheKey = `${status}:${selectedDateFilter || ''}:${page}`;
-    if (logsCache.has(cacheKey)) {
-      const cached = logsCache.get(cacheKey);
-      allLogs = cached.data;
-      currentPage = cached.page;
-      totalPages = cached.totalPages;
-      totalRecords = cached.total;
-      displayLogs(allLogs);
-      updatePagination();
-      // proceed to refresh in background
-    }
     const token = localStorage.getItem('token');
+    
     const response = await fetch(url, {
       headers: { 'Authorization': token ? `Bearer ${token}` : '' },
       signal: abortController.signal
     });
+    
     if (!response.ok) {
       throw new Error(`HTTP error! status: ${response.status}`);
     }
+    
     const result = await response.json();
+    
     if (result.success) {
       allLogs = result.data;
       currentPage = result.page;
       totalPages = result.totalPages;
       totalRecords = result.total;
-      // Cache fresh results
+      
+      // Cache fresh results with timestamp
       logsCache.set(cacheKey, {
         data: allLogs,
         page: currentPage,
         totalPages,
-        total: totalRecords
+        total: totalRecords,
+        timestamp: Date.now()
       });
 
       displayLogs(allLogs);
@@ -341,9 +352,30 @@ async function filterBy(status, event) {
 // Fetch logs by date
 async function fetchAttendanceLogsByDate(dateStr, page = 1) {
   try {
+    const cacheKey = `bydate:${dateStr}:${page}`;
+    
+    // Serve cached results instantly if available
+    const hasCache = logsCache.has(cacheKey);
+    if (hasCache) {
+      const cached = logsCache.get(cacheKey);
+      allLogs = cached.data;
+      currentPage = cached.page;
+      totalPages = cached.totalPages;
+      totalRecords = cached.total;
+      displayLogs(allLogs);
+      updatePagination();
+      // Skip fetch if cache is fresh
+      if (cached.timestamp && Date.now() - cached.timestamp < 10000) {
+        return;
+      }
+    } else {
+      showSkeletonLoading();
+    }
+    
     // Cancel any in-flight request
     if (abortController) abortController.abort();
     abortController = new AbortController();
+    
     const params = new URLSearchParams({
       date: dateStr,
       page: page,
@@ -352,36 +384,32 @@ async function fetchAttendanceLogsByDate(dateStr, page = 1) {
     
     const url = `${API_URL}/attendance/logs?${params.toString()}`;
     const token = localStorage.getItem('token');
-    const cacheKey = `bydate:${dateStr}:${page}`;
-    if (logsCache.has(cacheKey)) {
-      const cached = logsCache.get(cacheKey);
-      allLogs = cached.data;
-      currentPage = cached.page;
-      totalPages = cached.totalPages;
-      totalRecords = cached.total;
-      displayLogs(allLogs);
-      updatePagination();
-    }
 
     const response = await fetch(url, {
       headers: { 'Authorization': token ? `Bearer ${token}` : '' },
       signal: abortController.signal
     });
+    
     if (!response.ok) {
       throw new Error(`HTTP error! status: ${response.status}`);
     }
+    
     const result = await response.json();
+    
     if (result.success) {
       allLogs = result.data;
       currentPage = result.page;
       totalPages = result.totalPages;
       totalRecords = result.total;
+      
       logsCache.set(cacheKey, {
         data: allLogs,
         page: currentPage,
         totalPages,
-        total: totalRecords
+        total: totalRecords,
+        timestamp: Date.now()
       });
+      
       displayLogs(allLogs);
       updatePagination();
     } else {
@@ -590,18 +618,20 @@ function stopAutoRefresh() {
 // INITIALIZATION
 // ========================================
 document.addEventListener('DOMContentLoaded', async function () {
-  // Show loading immediately to avoid empty table flash
-  showSkeletonLoading();
-  // Proteksi: cek session via backend JWT
-  if (!(await window.checkAuth?.())) {
-    document.body.innerHTML = '';
-    window.location.href = '/login';
-    return;
-  }
-  // Initial fetch (page 1)
+  // Initial fetch (page 1) - skeleton akan muncul di dalam fetchAttendanceLogs jika perlu
   fetchAttendanceLogs('all', 1);
+  
   // Start auto-refresh
   startAutoRefresh();
+  
+  // Auth check non-blocking (check di background)
+  window.checkAuth?.().then(isAuth => {
+    if (!isAuth) {
+      document.body.innerHTML = '';
+      window.location.href = '/login';
+    }
+  });
+  
   console.log('Camera page initialized successfully');
 });
 

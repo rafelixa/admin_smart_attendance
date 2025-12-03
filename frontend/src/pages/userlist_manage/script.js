@@ -55,15 +55,26 @@ function hideLoading() {
   }
 }
 
-// In-flight request control
+// In-flight request control and cache
 let detailAbortController = null;
+const studentDetailCache = new Map(); // key: userId -> { data, timestamp }
 
 // ========================================
-// FETCH STUDENT DETAIL FROM API (cancellable)
+// FETCH STUDENT DETAIL FROM API (cancellable with cache)
 // ========================================
 async function fetchStudentDetail(userId, showLoadingOverlay = false) {
   try {
-    if (showLoadingOverlay) {
+    // Check cache first
+    const hasCache = studentDetailCache.has(userId);
+    if (hasCache) {
+      const cached = studentDetailCache.get(userId);
+      displayStudentDetail(cached.data);
+      // Skip fetch if cache is fresh (< 10 seconds)
+      if (cached.timestamp && Date.now() - cached.timestamp < 10000) {
+        if (showLoadingOverlay) hideLoading();
+        return;
+      }
+    } else if (showLoadingOverlay) {
       showLoading();
     }
 
@@ -85,6 +96,12 @@ async function fetchStudentDetail(userId, showLoadingOverlay = false) {
     const data = await response.json();
     
     if (data.success) {
+      // Cache result with timestamp
+      studentDetailCache.set(userId, {
+        data: data.data,
+        timestamp: Date.now()
+      });
+      
       displayStudentDetail(data.data);
       if (showLoadingOverlay) {
         hideLoading();

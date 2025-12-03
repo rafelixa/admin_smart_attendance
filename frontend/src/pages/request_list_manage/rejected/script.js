@@ -14,19 +14,40 @@ function getPermissionIdFromURL() {
   return urlParams.get('id');
 }
 
+// Cache for permission detail
+const permissionDetailCache = new Map(); // key: permissionId -> { data, timestamp }
+let detailAbortController = null;
+
 // ========================================
 // FETCH PERMISSION DETAIL
 // ========================================
 async function fetchPermissionDetail(permissionId) {
   try {
-    showLoading();
+    // Check cache first
+    const hasCache = permissionDetailCache.has(permissionId);
+    if (hasCache) {
+      const cached = permissionDetailCache.get(permissionId);
+      displayPermissionDetail(cached.data);
+      // Skip fetch if cache is fresh (< 10 seconds)
+      if (cached.timestamp && Date.now() - cached.timestamp < 10000) {
+        return cached.data;
+      }
+    } else {
+      showLoading();
+    }
+    
+    // Cancel previous request
+    if (detailAbortController) detailAbortController.abort();
+    detailAbortController = new AbortController();
+    
     const token = localStorage.getItem('token');
     const response = await fetch(`${API_URL}/permissions/${permissionId}`, {
       method: 'GET',
       headers: {
         'Content-Type': 'application/json',
         'Authorization': token ? `Bearer ${token}` : ''
-      }
+      },
+      signal: detailAbortController.signal
     });
 
     const data = await response.json();
@@ -37,8 +58,15 @@ async function fetchPermissionDetail(permissionId) {
       return null;
     }
 
+    // Cache result with timestamp
+    permissionDetailCache.set(permissionId, {
+      data: data.data,
+      timestamp: Date.now()
+    });
+
     return data.data;
   } catch (error) {
+    if (error.name === 'AbortError') return null;
     console.error('Error fetching permission detail:', error);
     showError('Connection error. Please check if backend is running.');
     return null;

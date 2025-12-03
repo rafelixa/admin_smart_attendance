@@ -36,7 +36,7 @@ const login = async (req, res) => {
 
     const { data: users, error } = await supabase
       .from('users')
-      .select('*')
+      .select('user_id, full_name, nim, email, password_hash, role')
       .or(`full_name.eq.${username},nim.eq.${username},email.eq.${username}`);
 
     const user = users && users.length > 0 ? users[0] : null;
@@ -90,7 +90,7 @@ const getCurrentUser = async (req, res) => {
       return res.status(401).json({ success: false, message: 'Invalid or expired token', error: err.message });
     }
 
-    const { data: users } = await supabase.from('users').select('*').eq('user_id', decoded.user_id);
+    const { data: users } = await supabase.from('users').select('user_id, full_name, nim, email, role, created_at').eq('user_id', decoded.user_id);
     const user = users && users.length > 0 ? users[0] : null;
     if (!user) return res.status(404).json({ success: false, message: 'User not found' });
 

@@ -297,16 +297,6 @@ function initializeFilterPopup() {
 // INITIALIZE PAGE
 // ========================================
 document.addEventListener('DOMContentLoaded', async function() {
-  // Show loading immediately BEFORE auth check
-  showLoading();
-  
-  // Proteksi: cek session via backend JWT
-  if (!(await window.checkAuth?.())) {
-    document.body.innerHTML = '';
-    window.location.href = '/login';
-    return;
-  }
-
   // Set default active filter
   const defaultFilter = document.querySelector('.filter-option[data-filter="all"]');
   if (defaultFilter) defaultFilter.classList.add('active');
@@ -317,14 +307,43 @@ document.addEventListener('DOMContentLoaded', async function() {
   // Initialize calendar functionality
   initializeCalendar();
 
-  // Initial load - fetch permissions page 1 (loading already shown)
+  // Initial load - fetch permissions page 1 (loading will show inside fetch if no cache)
+  showLoading();
   await fetchPermissionsData(1);
+  
+  // Auth check non-blocking (background)
+  window.checkAuth?.().then(isAuth => {
+    if (!isAuth) {
+      document.body.innerHTML = '';
+      window.location.href = '/login';
+    }
+  });
   
   console.log('[SUCCESS] Request List page initialized');
 });
 
 // Separate function to fetch without showing loading again
 async function fetchPermissionsData(page = 1, skipDisplay = false) {
+  const cacheKey = `${currentFilter}:${page}`;
+  
+  // Serve cached results instantly if available
+  const hasCache = permissionsCache.has(cacheKey);
+  if (hasCache) {
+    const cached = permissionsCache.get(cacheKey);
+    allPermissions = cached.data;
+    currentPage = cached.page;
+    totalPages = cached.totalPages;
+    totalRecords = cached.total;
+    if (!skipDisplay) {
+      displayPermissions(allPermissions);
+      updatePagination();
+    }
+    // Skip fetch if cache is fresh (< 10 seconds)
+    if (cached.timestamp && Date.now() - cached.timestamp < 10000) {
+      return;
+    }
+  }
+  
   // Cancel any in-flight request to avoid overlap and UI stalls
   if (abortController) {
     abortController.abort();
@@ -343,11 +362,6 @@ async function fetchPermissionsData(page = 1, skipDisplay = false) {
       // Normalize to lowercase to match backend values
       params.append('status', String(currentFilter).toLowerCase());
     }
-
-    const cacheKey = `${currentFilter}:${page}`;
-    
-    // Don't use cache - always fetch fresh to avoid double rendering
-    // This ensures we only display once after fetch completes
 
     const response = await fetch(`${API_URL}/permissions?${params.toString()}`, {
       method: 'GET',
@@ -372,12 +386,13 @@ async function fetchPermissionsData(page = 1, skipDisplay = false) {
     totalPages = data.totalPages || 1;
     totalRecords = data.total || 0;
 
-    // Always cache fresh results
+    // Always cache fresh results with timestamp
     permissionsCache.set(cacheKey, {
       data: allPermissions,
       page: currentPage,
       totalPages,
-      total: totalRecords
+      total: totalRecords,
+      timestamp: Date.now()
     });
 
     // Display fresh results (unless caller wants to do custom filtering first)
