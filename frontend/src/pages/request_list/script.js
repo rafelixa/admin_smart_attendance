@@ -250,7 +250,7 @@ function initializeFilterPopup() {
     e.stopPropagation();
   });
 
-  // Handle filter option selection
+  // Handle filter option selectiona  
   filterOptions.forEach(option => {
     option.addEventListener('click', async function() {
       // Remove active class from all options
