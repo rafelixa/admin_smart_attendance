@@ -2,5 +2,3 @@
 .env.example
 .vercel
 .env*.local
-REFACTORING_SUMMARY.md
-VERCEL_DEPLOYMENT_GUIDE.md
